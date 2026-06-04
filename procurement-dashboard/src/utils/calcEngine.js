@@ -20,7 +20,7 @@ function isNotNA(val) {
 }
 
 function amountOf(row) {
-  return Number(row['채주지급금액']) || 0;
+  return Number(row['물품금액']) || 0;
 }
 
 function sumWhere(rows, predicate) {
@@ -60,7 +60,7 @@ function aggregateActuals(rows) {
     disabled_enterprise:  sumWhere(rows, r => nonOnnuri(r)   && isY(r['장애인구매(연동)'])),
     standard_workshop:    sumWhere(rows, r => goodsOrSvc(r)  && isY(r['장애인표준사업장여부'])),
     severe_disabled:      sumWhere(rows, r => goodsOrSvc(r)  && isY(r['중증장애인제품'])),
-    tech_development:     sumWhere(rows, r => smeGoods(r)    && isY(r['기술개발제품대상품목조회'])),
+    tech_development:     sumWhere(rows, r => smeGoods(r)    && isNotNA(r['기술개발제품대상품목조회'])),
     pilot_purchase:       sumWhere(rows, r => smeGoods(r)    && isY(r['시범구매여부'])),
     nep:                  sumWhere(rows, r => isY(r['신제품인증(NEP)여부'])),
     green_product:        sumWhere(rows, r => isY(r['친환경제품'])),
