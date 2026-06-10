@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ReferenceLine, Cell, ResponsiveContainer,
@@ -18,16 +19,96 @@ const COLOR = {
 };
 
 // ── KPI 카드 ─────────────────────────────────────────────────────────────────
-function KpiCard({ icon, title, value, unit, sub, valueColor }) {
+function KpiCard({ icon, title, value, unit, sub, valueColor, onClick }) {
   return (
-    <div style={S.kpiCard}>
+    <div
+      style={{ ...S.kpiCard, ...(onClick ? S.kpiCardClickable : {}) }}
+      onClick={onClick}
+    >
       <div style={S.kpiIcon}>{icon}</div>
-      <div style={S.kpiTitle}>{title}</div>
+      <div style={S.kpiTitle}>{title}{onClick && <span style={S.kpiHint}>상세 보기 →</span>}</div>
       <div style={S.kpiValueRow}>
         <span style={{ ...S.kpiValue, color: valueColor ?? COLOR.text }}>{value}</span>
         {unit && <span style={S.kpiUnit}>{unit}</span>}
       </div>
       {sub && <div style={S.kpiSub}>{sub}</div>}
+    </div>
+  );
+}
+
+// ── 지출 상세 모달 ────────────────────────────────────────────────────────────
+const DETAIL_COLS = [
+  { key: '발의일자',        label: '발의일자',    align: 'left'  },
+  { key: '구매구분',        label: '구매구분',    align: 'left'  },
+  { key: '부서명',          label: '부서명',      align: 'left'  },
+  { key: '적요',            label: '적요',        align: 'left'  },
+  { key: '수령인사업자명',  label: '거래처',      align: 'left'  },
+  { key: '발주품목명',      label: '품목명',      align: 'left'  },
+  { key: '예산명',          label: '예산명',      align: 'left'  },
+  { key: '물품금액',        label: '금액',        align: 'right' },
+];
+
+function DetailModal({ rows, onClose }) {
+  const total = rows.reduce((s, r) => s + (Number(r['물품금액']) || 0), 0);
+
+  return (
+    <div style={M.overlay} onClick={onClose}>
+      <div style={M.panel} onClick={e => e.stopPropagation()}>
+
+        {/* 헤더 */}
+        <div style={M.header}>
+          <div>
+            <div style={M.headerTitle}>지출 상세 내역</div>
+            <div style={M.headerSub}>총 {rows.length.toLocaleString('ko-KR')}건 · {KRW(total)}</div>
+          </div>
+          <button style={M.closeBtn} onClick={onClose}>✕</button>
+        </div>
+
+        {/* 테이블 */}
+        <div style={M.tableWrap}>
+          <table style={M.table}>
+            <thead>
+              <tr>
+                <th style={{ ...M.th, textAlign: 'center', width: 40 }}>No.</th>
+                {DETAIL_COLS.map(c => (
+                  <th key={c.key} style={{ ...M.th, textAlign: c.align }}>{c.label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => (
+                <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                  <td style={{ ...M.td, textAlign: 'center', color: COLOR.subtext }}>{i + 1}</td>
+                  {DETAIL_COLS.map(c => (
+                    <td
+                      key={c.key}
+                      style={{
+                        ...M.td,
+                        textAlign: c.align,
+                        fontWeight: c.key === '물품금액' ? 600 : 400,
+                        color: c.key === '물품금액' ? COLOR.text : undefined,
+                        maxWidth: c.key === '적요' || c.key === '발주품목명' ? 200 : undefined,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {c.key === '물품금액'
+                        ? KRW(Number(row[c.key]) || 0)
+                        : (row[c.key] || '-')}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ background: '#f5f5f5', fontWeight: 700 }}>
+                <td style={{ ...M.td, textAlign: 'center' }} colSpan={DETAIL_COLS.length}>합계</td>
+                <td style={{ ...M.td, textAlign: 'right', color: COLOR.primary }}>{KRW(total)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
@@ -47,7 +128,8 @@ function ChartTooltip({ active, payload, label }) {
 }
 
 // ── 메인 ─────────────────────────────────────────────────────────────────────
-export default function Dashboard({ results, totalScore, finalScore, stats }) {
+export default function Dashboard({ results, totalScore, finalScore, stats, rows = [] }) {
+  const [showDetail, setShowDetail] = useState(false);
   const achieved    = results.filter(r => r.achieved);
   const notAchieved = results.filter(r => !r.achieved);
 
@@ -71,6 +153,8 @@ export default function Dashboard({ results, totalScore, finalScore, stats }) {
   return (
     <div style={{ fontFamily: "'Pretendard', 'Apple SD Gothic Neo', sans-serif" }}>
 
+      {showDetail && <DetailModal rows={rows} onClose={() => setShowDetail(false)} />}
+
       {/* ── KPI 카드 5개 ── */}
       <div style={S.kpiRow}>
         <KpiCard
@@ -78,6 +162,7 @@ export default function Dashboard({ results, totalScore, finalScore, stats }) {
           title="총 구매액"
           value={KRW(stats?.totalPurchaseAll)}
           sub={`전체 ${stats?.rowCount?.toLocaleString('ko-KR')}건`}
+          onClick={() => setShowDetail(true)}
         />
         <KpiCard
           icon="📦"
@@ -267,8 +352,10 @@ const S = {
     boxShadow: '0 1px 4px rgba(0,0,0,0.07)',
     minWidth: 0,
   },
+  kpiCardClickable: { cursor: 'pointer', transition: 'box-shadow 0.15s', boxShadow: '0 1px 4px rgba(0,0,0,0.07)' },
   kpiIcon:     { fontSize: 22, marginBottom: 8 },
-  kpiTitle:    { fontSize: 12, color: COLOR.subtext, marginBottom: 6, fontWeight: 500 },
+  kpiTitle:    { fontSize: 12, color: COLOR.subtext, marginBottom: 6, fontWeight: 500, display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  kpiHint:     { fontSize: 11, color: COLOR.primary, fontWeight: 400 },
   kpiValueRow: { display: 'flex', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' },
   kpiValue:    { fontSize: 22, fontWeight: 800, lineHeight: 1, color: COLOR.text },
   kpiUnit:     { fontSize: 13, color: COLOR.subtext },
@@ -347,5 +434,50 @@ const S = {
     height: '100%',
     borderRadius: 99,
     transition: 'width 0.4s ease',
+  },
+};
+
+// ── 모달 스타일 ───────────────────────────────────────────────────────────────
+const M = {
+  overlay: {
+    position: 'fixed', inset: 0,
+    background: 'rgba(0,0,0,0.45)',
+    zIndex: 100,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
+  panel: {
+    background: '#fff',
+    borderRadius: 16,
+    width: '90vw',
+    maxWidth: 1100,
+    maxHeight: '85vh',
+    display: 'flex',
+    flexDirection: 'column',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+  },
+  header: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+    padding: '20px 24px 16px',
+    borderBottom: '1px solid #f0f0f0',
+    flexShrink: 0,
+  },
+  headerTitle: { fontSize: 17, fontWeight: 700, color: COLOR.text },
+  headerSub:   { fontSize: 13, color: COLOR.subtext, marginTop: 4 },
+  closeBtn: {
+    background: 'none', border: 'none', fontSize: 18,
+    color: COLOR.subtext, cursor: 'pointer', padding: '2px 6px',
+  },
+  tableWrap: { overflowY: 'auto', flex: 1 },
+  table:     { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
+  th: {
+    padding: '10px 12px', fontWeight: 600, color: COLOR.subtext,
+    borderBottom: '2px solid #f0f0f0', whiteSpace: 'nowrap',
+    background: '#fff', position: 'sticky', top: 0,
+  },
+  td: {
+    padding: '9px 12px',
+    borderBottom: '1px solid #f5f5f5',
+    whiteSpace: 'nowrap',
+    color: COLOR.text,
   },
 };

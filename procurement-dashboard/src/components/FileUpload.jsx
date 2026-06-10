@@ -33,7 +33,8 @@ export default function FileUpload({ onDataLoad }) {
             const available = wb.SheetNames.join(', ');
             throw new Error(`'${SHEET_NAME}' 시트를 찾을 수 없습니다. (파일 내 시트: ${available})`);
           }
-          resolve(XLSX.utils.sheet_to_json(ws, { defval: '' }));
+          const parsed = XLSX.utils.sheet_to_json(ws, { defval: '' });
+          resolve(parsed.map(r => ({ ...r, '집행구분': 'Y' })));
         } catch (err) { reject(err); }
       };
       reader.onerror = () => reject(new Error('파일을 읽는 중 오류가 발생했습니다.'));
