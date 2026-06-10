@@ -122,5 +122,13 @@ export function calcEngine(rows, overrides = {}) {
   const totalScore = results.reduce((acc, r) => acc + r.score, 0);
   const finalScore = calcFinalScore(totalScore);
 
-  return { results, totalScore, finalScore };
+  const stats = {
+    totalPurchaseAll: baseAmounts.totalPurchase + (actuals.onnuri_voucher ?? 0),
+    totalPurchase:    baseAmounts.totalPurchase,
+    totalTargetSum:   results.reduce((a, r) => a + r.targetAmount, 0),
+    totalActualSum:   results.reduce((a, r) => a + r.actual, 0),
+    rowCount:         rows.length,
+  };
+
+  return { results, totalScore, finalScore, stats };
 }
