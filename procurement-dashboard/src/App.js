@@ -38,24 +38,39 @@ function AppLayout() {
     const token = localStorage.getItem('token');
     if (!token) { setInitLoading(false); setShowUpload(true); return; }
 
-    fetch(`${API_BASE}/api/data/latest`, {
+    fetch(`${API_BASE}/api/purchases/list`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(res => res.ok ? res.json() : Promise.reject(res.status))
       .then(data => {
+        if (!data.rows?.length) { setShowUpload(true); return; }
         setRows(data.rows);
         setResult(calcEngine(data.rows, OVERRIDES));
-        setUploadedAt(data.uploadedAt);
       })
       .catch(() => setShowUpload(true))
       .finally(() => setInitLoading(false));
   }, []);
 
-  const handleDataLoad = (newRows, meta) => {
-    setRows(newRows);
-    setResult(calcEngine(newRows, OVERRIDES));
+  // API에서 최신 데이터 재조회 (업로드·삭제·초기화 후 공통 사용)
+  const refreshData = () => {
+    const token = localStorage.getItem('token');
+    fetch(`${API_BASE}/api/purchases/list`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => res.ok ? res.json() : Promise.reject())
+      .then(data => {
+        const r = data.rows ?? [];
+        setRows(r);
+        setResult(r.length ? calcEngine(r, OVERRIDES) : null);
+      })
+      .catch(() => { setRows([]); setResult(null); });
+  };
+
+  // 업로드 완료 → Excel 원본 대신 API 재조회 (삭제된 행 자동 제외)
+  const handleDataLoad = (_newRows, meta) => {
     setUploadedAt(meta?.uploadedAt ?? new Date().toISOString());
     setShowUpload(false);
+    refreshData();
   };
 
   // DetailsPage에서 행 추가/삭제 시 calcEngine 재계산
@@ -94,7 +109,7 @@ function AppLayout() {
       />
       <Route
         path="/details"
-        element={<DetailsPage rows={rows} onRowsChange={handleRowsChange} />}
+        element={<DetailsPage rows={rows} onRowsChange={handleRowsChange} onRefresh={refreshData} />}
       />
       <Route
         path="/vendors"

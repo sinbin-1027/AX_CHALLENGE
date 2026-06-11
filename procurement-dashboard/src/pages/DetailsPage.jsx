@@ -1,13 +1,26 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
+
+const API_BASE = 'http://localhost:4001';
 
 const KRW = (n) => (Number(n) ? Math.round(Number(n)).toLocaleString('ko-KR') + '원' : '-');
 
+// 엑셀 날짜 시리얼 → YYYY-MM-DD 변환
+const fmtDate = (v) => {
+  if (!v) return '-';
+  const n = Number(v);
+  if (!n) return String(v);
+  const d = new Date(Math.round((n - 25569) * 86400 * 1000));
+  const p = (x) => String(x).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`;
+};
+
 const TABLE_COLS = [
   { key: '집행구분',       label: '집행구분',  align: 'center' },
-  { key: '발의일자',       label: '발의일자',  align: 'left'  },
+  { key: '결의번호',       label: '결의번호',  align: 'left'  },
+  { key: '발의일자',       label: '발의일자',  align: 'left', fmt: fmtDate },
   { key: '구매구분',       label: '구매구분',  align: 'left'  },
   { key: '부서명',         label: '부서명',    align: 'left'  },
-  { key: '적요',           label: '적요',      align: 'left', maxWidth: 180 },
+  { key: '적요',           label: '적요',      align: 'left', maxWidth: 200 },
   { key: '수령인사업자명', label: '거래처',    align: 'left', maxWidth: 160 },
   { key: '발주품목명',     label: '품목명',    align: 'left', maxWidth: 160 },
   { key: '물품금액',       label: '금액',      align: 'right' },
@@ -128,7 +141,7 @@ function AddRowForm({ onAdd, onCancel }) {
 }
 
 // ── 테이블 행 ────────────────────────────────────────────────────────────────
-function TableRow({ row, index, onDelete }) {
+function TableRow({ row, index, onDelete, isDeleting }) {
   const isN      = row['집행구분'] === 'N';
   const isManual = !!row.__manual;
   const rowBg    = isManual && isN ? '#fff1f0'
@@ -164,35 +177,74 @@ function TableRow({ row, index, onDelete }) {
               {row[c.key] || 'Y'}
             </span>
           ) : c.key === '물품금액' ? KRW(row[c.key])
+            : c.fmt ? c.fmt(row[c.key])
             : (row[c.key] || '-')}
         </td>
       ))}
       <td style={{ ...P.td, textAlign: 'center' }}>
-        {isManual ? (
-          <button onClick={() => onDelete(index)} style={P.deleteBtn}>삭제</button>
-        ) : (
-          <span style={{ fontSize: 11, color: '#aaa' }}>엑셀</span>
-        )}
+        <button
+          onClick={() => onDelete(index)}
+          disabled={isDeleting}
+          style={{ ...P.deleteBtn, opacity: isDeleting ? 0.5 : 1 }}
+        >
+          {isDeleting ? '...' : '삭제'}
+        </button>
       </td>
     </tr>
   );
 }
 
 // ── 메인 페이지 ──────────────────────────────────────────────────────────────
-export default function DetailsPage({ rows, onRowsChange }) {
-  const [showForm, setShowForm] = useState(false);
+export default function DetailsPage({ rows, onRowsChange, onRefresh }) {
+  const [showForm, setShowForm]   = useState(false);
+  const [deleting, setDeleting]   = useState(null); // 삭제 중인 index
+  const [resetting, setResetting] = useState(false);
 
-  const total    = rows.reduce((s, r) => s + (Number(r['물품금액']) || 0), 0);
-  const manualCount = rows.filter(r => r.__manual).length;
+  const total       = rows.reduce((s, r) => s + (Number(r['물품금액']) || 0), 0);
+  const manualCount = rows.filter(r => r.__source === 'manual').length;
 
   const handleAdd = (newRow) => {
     onRowsChange([...rows, { ...newRow, __manual: true }]);
     setShowForm(false);
   };
 
-  const handleDelete = (idx) => {
-    if (!rows[idx].__manual) return;
-    onRowsChange(rows.filter((_, i) => i !== idx));
+  const handleDelete = useCallback(async (idx) => {
+    const row = rows[idx];
+    setDeleting(idx);
+    try {
+      const token   = localStorage.getItem('token');
+      const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+
+      if (row.__source === 'manual') {
+        await fetch(`${API_BASE}/api/purchases/manual/${row.__id}`, { method: 'DELETE', headers });
+      } else {
+        const bizNo = encodeURIComponent(row.__결의번호);
+        await fetch(`${API_BASE}/api/purchases/delete/${bizNo}`, { method: 'POST', headers });
+      }
+      onRefresh?.();
+    } catch {
+      alert('삭제 중 오류가 발생했습니다.');
+    } finally {
+      setDeleting(null);
+    }
+  }, [rows, onRefresh]);
+
+  const handleReset = async () => {
+    if (!window.confirm('정말 초기화하시겠습니까?\n모든 데이터(엑셀 업로드 내역, 직접 입력 행)가 삭제됩니다.')) return;
+    setResetting(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res   = await fetch(`${API_BASE}/api/purchases/reset`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error();
+      onRefresh?.();
+    } catch {
+      alert('초기화 중 오류가 발생했습니다.');
+    } finally {
+      setResetting(false);
+    }
   };
 
   return (
@@ -206,9 +258,14 @@ export default function DetailsPage({ rows, onRowsChange }) {
             {manualCount > 0 && <span style={P.manualBadge}>직접 입력 {manualCount}건 포함</span>}
           </div>
         </div>
-        <button style={P.addBtn} onClick={() => setShowForm(v => !v)}>
-          {showForm ? '✕ 닫기' : '+ 행 추가'}
-        </button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button style={P.resetBtn} onClick={handleReset} disabled={resetting}>
+            {resetting ? '초기화 중...' : '🗑 데이터 초기화'}
+          </button>
+          <button style={P.addBtn} onClick={() => setShowForm(v => !v)}>
+            {showForm ? '✕ 닫기' : '+ 행 추가'}
+          </button>
+        </div>
       </div>
 
       {/* 행 추가 폼 */}
@@ -241,7 +298,7 @@ export default function DetailsPage({ rows, onRowsChange }) {
                 </tr>
               )}
               {rows.map((row, i) => (
-                <TableRow key={i} row={row} index={i} onDelete={handleDelete} />
+                <TableRow key={i} row={row} index={i} onDelete={handleDelete} isDeleting={deleting === i} />
               ))}
             </tbody>
             <tfoot>
@@ -265,6 +322,7 @@ const P = {
   pageSub:     { fontSize: 13, color: '#94a3b8', marginTop: 4 },
   manualBadge: { marginLeft: 10, background: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: 99, fontSize: 12 },
   addBtn:      { padding: '9px 20px', background: '#1677ff', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' },
+  resetBtn:    { padding: '9px 16px', background: '#fff', color: '#ff4d4f', border: '1px solid #ffa39e', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' },
   tableCard:   { background: '#fff', borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.07)', overflow: 'hidden' },
   table:       { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
   th:          { padding: '11px 12px', fontWeight: 600, color: '#64748b', borderBottom: '2px solid #f0f0f0', whiteSpace: 'nowrap', position: 'sticky', top: 0, background: '#fafafa' },

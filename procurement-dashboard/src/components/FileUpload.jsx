@@ -47,21 +47,16 @@ export default function FileUpload({ onDataLoad }) {
     setStatus('saving');
     const uploadedAt = new Date().toISOString();
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${API_BASE}/api/data/upload`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ filename: file.name, rows }),
+      const token   = localStorage.getItem('token');
+      const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+
+      // raw_purchases 테이블에 결의번호 기준 저장
+      const res = await fetch(`${API_BASE}/api/purchases/upload`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ rows }),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message ?? '서버 저장에 실패했습니다.');
-      }
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message ?? '저장 실패');
     } catch (err) {
-      // 저장 실패해도 대시보드는 표시 (경고만)
       setError(`저장 실패: ${err.message}`);
     }
 
