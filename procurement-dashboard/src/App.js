@@ -6,6 +6,8 @@ import Dashboard from './components/Dashboard';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DetailsPage from './pages/DetailsPage';
+import VendorRecommend from './components/VendorRecommend';
+import VendorList from './components/VendorList';
 import { calcEngine } from './utils/calcEngine';
 
 const API_BASE = 'http://localhost:4001';
@@ -93,6 +95,14 @@ function AppLayout() {
       <Route
         path="/details"
         element={<DetailsPage rows={rows} onRowsChange={handleRowsChange} />}
+      />
+      <Route
+        path="/vendors"
+        element={<VendorRecommend results={result?.results ?? []} />}
+      />
+      <Route
+        path="/vendor-list"
+        element={<VendorList />}
       />
     </Routes>
   );

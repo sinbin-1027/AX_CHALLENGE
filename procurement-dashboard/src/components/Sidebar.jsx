@@ -1,8 +1,10 @@
 import { Link, useLocation } from 'react-router-dom';
 
 const NAV = [
-  { path: '/',        icon: '📊', label: '대시보드'  },
-  { path: '/details', icon: '📋', label: '지출 내역' },
+  { path: '/',             icon: '📊', label: '대시보드'  },
+  { path: '/details',      icon: '📋', label: '지출 내역' },
+  { path: '/vendors',      icon: '🏢', label: '업체 추천' },
+  { path: '/vendor-list',  icon: '🗂️', label: '업체 관리' },
 ];
 
 export default function Sidebar() {
