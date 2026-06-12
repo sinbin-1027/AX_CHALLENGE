@@ -6,11 +6,6 @@ const db = new DatabaseSync(path.join(__dirname, '../../procurement.db'));
 db.exec(`PRAGMA journal_mode = WAL`);
 db.exec(`PRAGMA foreign_keys = ON`);
 
-// raw_purchases 누락 컬럼 마이그레이션 (이미 있으면 무시)
-['발의일자 TEXT', '수령인사업자명 TEXT', '발주품목명 TEXT'].forEach(col => {
-  try { db.exec(`ALTER TABLE raw_purchases ADD COLUMN ${col}`); } catch {}
-});
-
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,6 +38,9 @@ db.exec(`
     물품금액                    REAL,
     적요                        TEXT,
     부서명                      TEXT,
+    발의일자                    TEXT,
+    수령인사업자명              TEXT,
+    발주품목명                  TEXT,
     중소기업제품                TEXT,
     여성기업제품                TEXT,
     사회적기업                  TEXT,
@@ -58,31 +56,19 @@ db.exec(`
     신제품인증NEP여부           TEXT,
     신제품인증NEP대상품목       TEXT,
     혁신제품여부                TEXT,
+    제외여부                    INTEGER NOT NULL DEFAULT 0,
+    제외사유                    TEXT,
     uploaded_at                 TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
   )
 `);
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS deleted_numbers (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    결의번호    TEXT    NOT NULL UNIQUE,
-    user_id     INTEGER,
-    삭제사유    TEXT,
-    deleted_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
-  )
-`);
-
-db.exec(`
-  CREATE TABLE IF NOT EXISTS purchase_adjustments (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    결의번호    TEXT    NOT NULL,
-    user_id     INTEGER,
-    컬럼명      TEXT    NOT NULL,
-    원본값      TEXT,
-    수정값      TEXT,
-    adjusted_at TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
-  )
-`);
+// 기존 raw_purchases에 누락된 컬럼 마이그레이션
+[
+  '발의일자 TEXT', '수령인사업자명 TEXT', '발주품목명 TEXT',
+  '제외여부 INTEGER NOT NULL DEFAULT 0', '제외사유 TEXT',
+].forEach(col => {
+  try { db.exec(`ALTER TABLE raw_purchases ADD COLUMN ${col}`); } catch {}
+});
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS manual_purchases (
