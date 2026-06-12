@@ -165,16 +165,23 @@ export default function Dashboard({ results, totalScore, finalScore, stats, rows
           onClick={() => setShowDetail(true)}
         />
         <KpiCard
+          icon="🎯"
+          title="공공구매 목표액"
+          value={KRW(stats?.totalTargetSum)}
+          sub={`목표 합산`}
+        />
+        <KpiCard
           icon="📦"
-          title="공공구매 실적액"
+          title="공공구매 지출액"
           value={KRW(stats?.totalPurchase)}
           sub="물품·용역·공사"
         />
         <KpiCard
-          icon="🎯"
-          title="공공구매 목표액"
-          value={KRW(stats?.totalTargetSum)}
-          sub={`달성률 ${stats?.totalTargetSum ? ((stats.totalActualSum / stats.totalTargetSum) * 100).toFixed(1) + '%' : '-'}`}
+          icon="✅"
+          title="지표달성률(전체)"
+          value={`${achieved.length} / ${results.length}개`}
+          sub={`(${results.length ? ((achieved.length / results.length) * 100).toFixed(1) : '0.0'}%)`}
+          valueColor={achieved.length >= results.length * 0.7 ? COLOR.success : COLOR.danger}
         />
         <KpiCard
           icon="⭐"
@@ -183,14 +190,6 @@ export default function Dashboard({ results, totalScore, finalScore, stats, rows
           unit="/ 4.00점"
           sub={finalScore >= 3 ? '우수' : finalScore >= 2 ? '보통' : '미흡'}
           valueColor={scoreColor}
-        />
-        <KpiCard
-          icon="✅"
-          title="달성 지표 수"
-          value={achieved.length}
-          unit={`/ ${results.length}개`}
-          sub={`배점 ${totalScore.toFixed(2)} / 9.5`}
-          valueColor={achieved.length >= results.length * 0.7 ? COLOR.success : COLOR.danger}
         />
       </div>
 

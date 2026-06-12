@@ -221,8 +221,9 @@ export default function DetailsPage({ rows, onRowsChange, onRefresh }) {
         const bizNo = encodeURIComponent(row.__결의번호);
         await fetch(`${API_BASE}/api/purchases/delete/${bizNo}`, { method: 'POST', headers });
       }
-      onRefresh?.();
-    } catch {
+      if (onRefresh) await onRefresh().catch(() => {});
+    } catch (e) {
+      console.error('삭제 오류:', e);
       alert('삭제 중 오류가 발생했습니다.');
     } finally {
       setDeleting(null);
@@ -238,9 +239,10 @@ export default function DetailsPage({ rows, onRowsChange, onRefresh }) {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error();
-      onRefresh?.();
-    } catch {
+      if (!res.ok) throw new Error(`reset 실패: ${res.status}`);
+      if (onRefresh) await onRefresh().catch(() => {});
+    } catch (e) {
+      console.error('초기화 오류:', e);
       alert('초기화 중 오류가 발생했습니다.');
     } finally {
       setResetting(false);

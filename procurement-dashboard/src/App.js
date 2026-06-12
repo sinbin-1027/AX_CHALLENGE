@@ -51,26 +51,33 @@ function AppLayout() {
       .finally(() => setInitLoading(false));
   }, []);
 
-  // API에서 최신 데이터 재조회 (업로드·삭제·초기화 후 공통 사용)
+  // API에서 최신 데이터 재조회 → Promise 반환 (await 가능)
   const refreshData = () => {
     const token = localStorage.getItem('token');
-    fetch(`${API_BASE}/api/purchases/list`, {
+    return fetch(`${API_BASE}/api/purchases/list`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then(res => res.ok ? res.json() : Promise.reject())
+      .then(res => res.ok ? res.json() : Promise.reject(new Error(`status ${res.status}`)))
       .then(data => {
         const r = data.rows ?? [];
         setRows(r);
-        setResult(r.length ? calcEngine(r, OVERRIDES) : null);
-      })
-      .catch(() => { setRows([]); setResult(null); });
+        try {
+          setResult(r.length ? calcEngine(r, OVERRIDES) : null);
+        } catch (e) {
+          console.error('calcEngine 오류:', e);
+          setResult(null);
+        }
+      });
   };
 
   // 업로드 완료 → Excel 원본 대신 API 재조회 (삭제된 행 자동 제외)
   const handleDataLoad = (_newRows, meta) => {
     setUploadedAt(meta?.uploadedAt ?? new Date().toISOString());
     setShowUpload(false);
-    refreshData();
+    refreshData().catch(e => {
+      console.error('데이터 조회 실패:', e);
+      setShowUpload(true);
+    });
   };
 
   // DetailsPage에서 행 추가/삭제 시 calcEngine 재계산
