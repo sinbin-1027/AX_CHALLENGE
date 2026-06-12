@@ -33,7 +33,8 @@ export default function FileUpload({ onDataLoad }) {
             const available = wb.SheetNames.join(', ');
             throw new Error(`'${SHEET_NAME}' 시트를 찾을 수 없습니다. (파일 내 시트: ${available})`);
           }
-          resolve(XLSX.utils.sheet_to_json(ws, { defval: '' }));
+          const parsed = XLSX.utils.sheet_to_json(ws, { defval: '' });
+          resolve(parsed.map(r => ({ ...r, '집행구분': 'Y' })));
         } catch (err) { reject(err); }
       };
       reader.onerror = () => reject(new Error('파일을 읽는 중 오류가 발생했습니다.'));
@@ -46,21 +47,16 @@ export default function FileUpload({ onDataLoad }) {
     setStatus('saving');
     const uploadedAt = new Date().toISOString();
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${API_BASE}/api/data/upload`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ filename: file.name, rows }),
+      const token   = localStorage.getItem('token');
+      const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+
+      // raw_purchases 테이블에 결의번호 기준 저장
+      const res = await fetch(`${API_BASE}/api/purchases/upload`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ rows }),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message ?? '서버 저장에 실패했습니다.');
-      }
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message ?? '저장 실패');
     } catch (err) {
-      // 저장 실패해도 대시보드는 표시 (경고만)
       setError(`저장 실패: ${err.message}`);
     }
 

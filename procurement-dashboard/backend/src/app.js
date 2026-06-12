@@ -2,8 +2,10 @@ require('dotenv').config();
 
 const express   = require('express');
 const cors      = require('cors');
-const authRoute = require('./routes/auth');
-const dataRoute = require('./routes/data');
+const authRoute      = require('./routes/auth');
+const dataRoute      = require('./routes/data');
+const vendorsRoute   = require('./routes/vendors');
+const purchasesRoute = require('./routes/purchases');
 
 const app  = express();
 const PORT = process.env.PORT || 4000;
@@ -11,8 +13,10 @@ const PORT = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-app.use('/api/auth', authRoute);
-app.use('/api/data', dataRoute);
+app.use('/api/auth',      authRoute);
+app.use('/api/data',      dataRoute);
+app.use('/api/vendors',   vendorsRoute);
+app.use('/api/purchases', purchasesRoute);
 
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
 
