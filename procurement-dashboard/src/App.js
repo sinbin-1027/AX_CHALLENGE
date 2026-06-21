@@ -38,36 +38,37 @@ function AppLayout() {
     const token = localStorage.getItem('token');
     if (!token) { setInitLoading(false); setShowUpload(true); return; }
 
-    fetch(`${API_BASE}/api/purchases/list`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(res => res.ok ? res.json() : Promise.reject(res.status))
-      .then(data => {
-        if (!data.rows?.length) { setShowUpload(true); return; }
-        setRows(data.rows);
-        setResult(calcEngine(data.rows, OVERRIDES));
+    const headers = { Authorization: `Bearer ${token}` };
+    Promise.all([
+      fetch(`${API_BASE}/api/purchases/calc`, { headers }).then(r => r.ok ? r.json() : Promise.reject()),
+      fetch(`${API_BASE}/api/purchases/list`, { headers }).then(r => r.ok ? r.json() : Promise.reject()),
+    ])
+      .then(([calcData, listData]) => {
+        const calcRows = calcData.rows ?? [];
+        const listRows = listData.rows ?? [];
+        if (!calcRows.length && !listRows.length) { setShowUpload(true); return; }
+        setRows(listRows);
+        try { setResult(calcRows.length ? calcEngine(calcRows, OVERRIDES) : null); }
+        catch (e) { console.error('calcEngine 오류:', e); setResult(null); }
       })
       .catch(() => setShowUpload(true))
       .finally(() => setInitLoading(false));
   }, []);
 
-  // API에서 최신 데이터 재조회 → Promise 반환 (await 가능)
+  // 최신 데이터 재조회 — calc(계산용) + list(표시용) 동시 갱신
   const refreshData = () => {
-    const token = localStorage.getItem('token');
-    return fetch(`${API_BASE}/api/purchases/list`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(res => res.ok ? res.json() : Promise.reject(new Error(`status ${res.status}`)))
-      .then(data => {
-        const r = data.rows ?? [];
-        setRows(r);
-        try {
-          setResult(r.length ? calcEngine(r, OVERRIDES) : null);
-        } catch (e) {
-          console.error('calcEngine 오류:', e);
-          setResult(null);
-        }
-      });
+    const token   = localStorage.getItem('token');
+    const headers = { Authorization: `Bearer ${token}` };
+    return Promise.all([
+      fetch(`${API_BASE}/api/purchases/calc`, { headers }).then(r => r.ok ? r.json() : Promise.reject(new Error(`calc ${r.status}`))),
+      fetch(`${API_BASE}/api/purchases/list`, { headers }).then(r => r.ok ? r.json() : Promise.reject(new Error(`list ${r.status}`))),
+    ]).then(([calcData, listData]) => {
+      const calcRows = calcData.rows ?? [];
+      const listRows = listData.rows ?? [];
+      setRows(listRows);
+      try { setResult(calcRows.length ? calcEngine(calcRows, OVERRIDES) : null); }
+      catch (e) { console.error('calcEngine 오류:', e); setResult(null); }
+    });
   };
 
   // 업로드 완료 → Excel 원본 대신 API 재조회 (삭제된 행 자동 제외)
@@ -81,10 +82,6 @@ function AppLayout() {
   };
 
   // DetailsPage에서 행 추가/삭제 시 calcEngine 재계산
-  const handleRowsChange = (newRows) => {
-    setRows(newRows);
-    setResult(calcEngine(newRows, OVERRIDES));
-  };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -116,7 +113,7 @@ function AppLayout() {
       />
       <Route
         path="/details"
-        element={<DetailsPage rows={rows} onRowsChange={handleRowsChange} onRefresh={refreshData} />}
+        element={<DetailsPage rows={rows} onRefresh={refreshData} />}
       />
       <Route
         path="/vendors"
@@ -176,15 +173,15 @@ export default function App() {
 }
 
 const S = {
-  root:       { display: 'flex', minHeight: '100vh', fontFamily: "'Apple SD Gothic Neo', sans-serif" },
-  main:       { flex: 1, display: 'flex', flexDirection: 'column', background: '#f0f2f5', minWidth: 0 },
-  header:     { background: '#fff', borderBottom: '1px solid #e8e8e8', padding: '0 28px', height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 },
+  root:       { display: 'flex', minHeight: '100vh', fontFamily: "-apple-system, 'Pretendard', 'Apple SD Gothic Neo', sans-serif" },
+  main:       { flex: 1, display: 'flex', flexDirection: 'column', background: '#F9FAFB', minWidth: 0 },
+  header:     { background: '#FFFFFF', borderBottom: '1px solid #F2F4F6', padding: '0 28px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 },
   headerLeft: { display: 'flex', alignItems: 'center', gap: 14 },
-  uploadedAt: { fontSize: 13, color: '#94a3b8' },
-  updateBtn:  { padding: '5px 14px', background: '#1677ff', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer' },
+  uploadedAt: { fontSize: 13, color: '#8B95A1' },
+  updateBtn:  { padding: '6px 16px', background: '#3182F6', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' },
   headerRight:{ display: 'flex', alignItems: 'center', gap: 14 },
-  headerUser: { fontSize: 14, color: '#64748b' },
-  logoutBtn:  { padding: '5px 14px', background: 'transparent', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13, color: '#64748b', cursor: 'pointer' },
+  headerUser: { fontSize: 14, color: '#8B95A1', fontWeight: 500 },
+  logoutBtn:  { padding: '6px 16px', background: 'transparent', border: '1px solid #F2F4F6', borderRadius: 8, fontSize: 13, color: '#8B95A1', cursor: 'pointer' },
   content:    { flex: 1, padding: '24px 28px', overflowY: 'auto' },
-  loading:    { textAlign: 'center', padding: '80px 0', fontSize: 15, color: '#94a3b8' },
+  loading:    { textAlign: 'center', padding: '80px 0', fontSize: 15, color: '#8B95A1' },
 };

@@ -6,32 +6,6 @@ const router = express.Router();
 
 // ── 컬럼 매핑 ─────────────────────────────────────────────────────────────────
 
-// 엑셀 헤더 → DB 컬럼명
-const EXCEL_TO_DB = {
-  '결의번호':                   '결의번호',
-  '구매구분':                   '구매구분',
-  '채주지급금액':               '채주지급금액',
-  '물품금액':                   '물품금액',
-  '적요':                       '적요',
-  '부서명':                     '부서명',
-  '중소기업제품(연동)':         '중소기업제품',
-  '여성기업제품(연동)':         '여성기업제품',
-  '사회적기업':                 '사회적기업',
-  '사회적협동조합제품여부':     '사회적협동조합제품여부',
-  '장애인구매(연동)':           '장애인구매',
-  '장애인표준사업장여부':       '장애인표준사업장여부',
-  '중증장애인제품':             '중증장애인제품',
-  '창업기업제품':               '창업기업제품',
-  '친환경제품':                 '친환경제품',
-  '자활용사촌제품':             '자활용사촌제품',
-  '시범구매여부':               '시범구매여부',
-  '기술개발제품대상품목조회':   '기술개발제품대상품목조회',
-  '신제품인증(NEP)여부':        '신제품인증NEP여부',
-  '신제품인증(NEP) 대상품목':   '신제품인증NEP대상품목',
-  '혁신제품여부':               '혁신제품여부',
-};
-
-// DB 컬럼명 → calcEngine 컬럼명
 const DB_TO_CALC = {
   '구매구분':                   '구매구분',
   '물품금액':                   '물품금액',
@@ -53,32 +27,20 @@ const DB_TO_CALC = {
   '혁신제품여부':               '혁신제품여부',
 };
 
-const RAW_CERT_COLS = [
-  '중소기업제품', '여성기업제품', '사회적기업', '사회적협동조합제품여부',
-  '장애인구매', '장애인표준사업장여부', '중증장애인제품', '창업기업제품',
-  '친환경제품', '자활용사촌제품', '시범구매여부', '기술개발제품대상품목조회',
-  '신제품인증NEP여부', '신제품인증NEP대상품목', '혁신제품여부',
-];
-
-// raw_purchase 행 → calcEngine 형식 (표시용 필드 포함)
 function toCalcRow(row) {
-  // DB 원본 필드 전부 유지 (지출내역 화면 표시용)
   const out = { ...row };
-
-  // calcEngine용 컬럼명으로 매핑 (중소기업제품 → 중소기업제품(연동) 등)
   for (const [dbCol, calcCol] of Object.entries(DB_TO_CALC)) {
     out[calcCol] = row[dbCol] ?? '';
   }
-
   out['물품금액']     = Number(row['물품금액'])     || 0;
   out['채주지급금액'] = Number(row['채주지급금액']) || 0;
   out['집행구분']     = row['집행구분'] ?? 'Y';
+  out['제외여부']     = row['제외여부'] ?? 0;
   out.__source        = 'raw';
   out.__결의번호      = row['결의번호'] ?? null;
   return out;
 }
 
-// manual_purchase 행 → calcEngine 형식
 function manualToCalcRow(row) {
   return {
     '구매구분':                   row['구매구분']              ?? '물품',
@@ -100,10 +62,41 @@ function manualToCalcRow(row) {
     '신제품인증(NEP) 대상품목':   row['신제품인증NEP대상품목'] ?? 'N',
     '혁신제품여부':               row['혁신제품여부']          ?? 'N',
     '집행구분':                   row['집행구분']              ?? 'Y',
+    '제외여부':                   0,
     __source:                     'manual',
     __id:                         row.id,
   };
 }
+
+// ── GET /api/purchases/list (전체 - 화면 표시용) ──────────────────────────────
+
+router.get('/list', auth, (req, res) => {
+  const userId = req.user.id;
+
+  const rawRows    = db.prepare('SELECT * FROM raw_purchases WHERE user_id = ? ORDER BY uploaded_at ASC').all(userId);
+  const manualRows = db.prepare('SELECT * FROM manual_purchases WHERE user_id = ? ORDER BY created_at ASC').all(userId);
+
+  res.json({
+    rows:        [...rawRows.map(toCalcRow), ...manualRows.map(manualToCalcRow)],
+    rawCount:    rawRows.length,
+    manualCount: manualRows.length,
+  });
+});
+
+// ── GET /api/purchases/calc (제외여부=0만 - calcEngine용) ─────────────────────
+
+router.get('/calc', auth, (req, res) => {
+  const userId = req.user.id;
+
+  const rawRows    = db.prepare('SELECT * FROM raw_purchases WHERE user_id = ? AND 제외여부 = 0 ORDER BY uploaded_at ASC').all(userId);
+  const manualRows = db.prepare('SELECT * FROM manual_purchases WHERE user_id = ? ORDER BY created_at ASC').all(userId);
+
+  res.json({
+    rows:        [...rawRows.map(toCalcRow), ...manualRows.map(manualToCalcRow)],
+    rawCount:    rawRows.length,
+    manualCount: manualRows.length,
+  });
+});
 
 // ── POST /api/purchases/upload ────────────────────────────────────────────────
 
@@ -113,14 +106,9 @@ router.post('/upload', auth, (req, res) => {
     return res.status(400).json({ message: 'rows 배열이 필요합니다.' });
   }
 
-  let added = 0, duplicated = 0, blacklisted = 0, skipped = 0;
-
-  // 기존 결의번호를 한 번에 Set으로 조회 (row별 쿼리 대신)
-  const existingSet   = new Set(
+  // 기존 결의번호를 Set으로 일괄 조회
+  const existingSet = new Set(
     db.prepare('SELECT 결의번호 FROM raw_purchases').all().map(r => r['결의번호'])
-  );
-  const blacklistSet  = new Set(
-    db.prepare('SELECT 결의번호 FROM deleted_numbers').all().map(r => r['결의번호'])
   );
 
   const insert = db.prepare(`
@@ -134,13 +122,14 @@ router.post('/upload', auth, (req, res) => {
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `);
 
+  let added = 0, skipped = 0;
+
   db.exec('BEGIN');
   try {
     for (const row of rows) {
       const bizNo = String(row['결의번호'] ?? '').trim();
-      if (!bizNo)                   { skipped++;    continue; }
-      if (blacklistSet.has(bizNo))  { blacklisted++; continue; }
-      if (existingSet.has(bizNo))   { duplicated++;  continue; }
+      if (!bizNo)                 { skipped++; continue; }
+      if (existingSet.has(bizNo)) { skipped++; continue; }
 
       insert.run(
         bizNo, req.user.id,
@@ -168,7 +157,7 @@ router.post('/upload', auth, (req, res) => {
         row['신제품인증(NEP) 대상품목']  ?? '',
         row['혁신제품여부']              ?? '',
       );
-      existingSet.add(bizNo); // 같은 배치 내 자기 중복 방지
+      existingSet.add(bizNo);
       added++;
     }
     db.exec('COMMIT');
@@ -177,54 +166,32 @@ router.post('/upload', auth, (req, res) => {
     throw err;
   }
 
-  res.status(201).json({ added, duplicated, blacklisted, skipped });
+  res.status(201).json({ added, skipped });
 });
 
-// ── GET /api/purchases/list ───────────────────────────────────────────────────
+// ── PUT /api/purchases/exclude ────────────────────────────────────────────────
 
-router.get('/list', auth, (req, res) => {
+router.put('/exclude', auth, (req, res) => {
+  const { excludeIds = [] } = req.body;
   const userId = req.user.id;
 
-  // 1. raw_purchases (deleted_numbers 제외)
-  const rawRows = db.prepare(`
-    SELECT * FROM raw_purchases
-    WHERE user_id = ?
-      AND (결의번호 IS NULL OR 결의번호 NOT IN (
-        SELECT 결의번호 FROM deleted_numbers
-      ))
-    ORDER BY uploaded_at ASC
-  `).all(userId);
+  db.exec('BEGIN');
+  try {
+    db.prepare('UPDATE raw_purchases SET 제외여부 = 0 WHERE user_id = ?').run(userId);
 
-  // 2. 최신 adjustments 적용
-  const adjustments = db.prepare(`
-    SELECT 결의번호, 컬럼명, 수정값
-    FROM purchase_adjustments
-    WHERE user_id = ?
-      AND id IN (
-        SELECT MAX(id) FROM purchase_adjustments
-        WHERE user_id = ?
-        GROUP BY 결의번호, 컬럼명
-      )
-  `).all(userId, userId);
-
-  const adjMap = {};
-  for (const a of adjustments) {
-    if (!adjMap[a['결의번호']]) adjMap[a['결의번호']] = {};
-    adjMap[a['결의번호']][a['컬럼명']] = a['수정값'];
+    if (excludeIds.length > 0) {
+      const stmt = db.prepare('UPDATE raw_purchases SET 제외여부 = 1 WHERE 결의번호 = ? AND user_id = ?');
+      for (const bizNo of excludeIds) {
+        stmt.run(bizNo, userId);
+      }
+    }
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
   }
 
-  const rawCalc = rawRows.map(row => {
-    const overrides = adjMap[row['결의번호']] ?? {};
-    return toCalcRow({ ...row, ...overrides });
-  });
-
-  // 3. manual_purchases
-  const manualRows = db.prepare(
-    'SELECT * FROM manual_purchases WHERE user_id = ? ORDER BY created_at ASC'
-  ).all(userId);
-  const manualCalc = manualRows.map(manualToCalcRow);
-
-  res.json({ rows: [...rawCalc, ...manualCalc], rawCount: rawCalc.length, manualCount: manualCalc.length });
+  res.json({ ok: true, excludedCount: excludeIds.length });
 });
 
 // ── POST /api/purchases/manual ────────────────────────────────────────────────
@@ -292,64 +259,24 @@ router.put('/manual/:id', auth, (req, res) => {
 
 router.delete('/manual/:id', auth, (req, res) => {
   const id = Number(req.params.id);
-  const { changes } = db.prepare(
-    'DELETE FROM manual_purchases WHERE id = ? AND user_id = ?'
-  ).run(id, req.user.id);
-
+  const { changes } = db.prepare('DELETE FROM manual_purchases WHERE id = ? AND user_id = ?').run(id, req.user.id);
   if (!changes) return res.status(404).json({ message: '항목을 찾을 수 없습니다.' });
   res.json({ ok: true });
-});
-
-// ── POST /api/purchases/delete/:결의번호 ──────────────────────────────────────
-
-router.post('/delete/:bizNo', auth, (req, res) => {
-  const bizNo = decodeURIComponent(req.params.bizNo);
-  const { 삭제사유 = '' } = req.body;
-
-  const exists = db.prepare('SELECT 1 FROM deleted_numbers WHERE 결의번호 = ?').get(bizNo);
-  if (exists) return res.status(409).json({ message: '이미 블랙리스트에 등록된 결의번호입니다.' });
-
-  db.prepare(
-    'INSERT INTO deleted_numbers (결의번호, user_id, 삭제사유) VALUES (?, ?, ?)'
-  ).run(bizNo, req.user.id, 삭제사유);
-
-  res.status(201).json({ ok: true, 결의번호: bizNo });
-});
-
-// ── PUT /api/purchases/adjust ─────────────────────────────────────────────────
-
-router.put('/adjust', auth, (req, res) => {
-  const { 결의번호, 컬럼명, 원본값, 수정값 } = req.body;
-
-  if (!결의번호 || !컬럼명) {
-    return res.status(400).json({ message: '결의번호와 컬럼명이 필요합니다.' });
-  }
-
-  const { lastInsertRowid } = db.prepare(`
-    INSERT INTO purchase_adjustments (결의번호, user_id, 컬럼명, 원본값, 수정값)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(결의번호, req.user.id, 컬럼명, 원본값 ?? '', 수정값 ?? '');
-
-  res.status(201).json({ id: Number(lastInsertRowid) });
 });
 
 // ── DELETE /api/purchases/reset ───────────────────────────────────────────────
 
 router.delete('/reset', auth, (req, res) => {
   const userId = req.user.id;
-
   db.exec('BEGIN');
   try {
-    db.prepare('DELETE FROM raw_purchases        WHERE user_id = ?').run(userId);
-    db.prepare('DELETE FROM deleted_numbers      WHERE user_id = ?').run(userId);
-    db.prepare('DELETE FROM purchase_adjustments WHERE user_id = ?').run(userId);
-    db.prepare('DELETE FROM manual_purchases     WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM raw_purchases    WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM manual_purchases WHERE user_id = ?').run(userId);
     db.exec('COMMIT');
   } catch (err) {
     db.exec('ROLLBACK');
     throw err;
   }
-
   res.json({ ok: true });
 });
 
