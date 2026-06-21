@@ -8,6 +8,9 @@ import RegisterPage from './pages/RegisterPage';
 import DetailsPage from './pages/DetailsPage';
 import VendorRecommend from './components/VendorRecommend';
 import VendorList from './components/VendorList';
+import ComingSoon from './pages/ComingSoon';
+import IndicatorStatusPage from './pages/IndicatorStatusPage';
+import IndicatorDetailPage from './pages/IndicatorDetailPage';
 import { calcEngine } from './utils/calcEngine';
 
 const API_BASE = 'http://localhost:4001';
@@ -111,18 +114,37 @@ function AppLayout() {
           )
         }
       />
-      <Route
-        path="/details"
-        element={<DetailsPage rows={rows} onRefresh={refreshData} />}
-      />
-      <Route
-        path="/vendors"
-        element={<VendorRecommend results={result?.results ?? []} />}
-      />
-      <Route
-        path="/vendor-list"
-        element={<VendorList />}
-      />
+      {/* 예산현황 */}
+      <Route path="/budget/allocation" element={<ComingSoon title="예산 배정액" />} />
+      <Route path="/budget/execution"  element={<ComingSoon title="예산 집행액" />} />
+
+      {/* 공공구매 관리 */}
+      <Route path="/procurement/indicators" element={
+        result
+          ? <IndicatorStatusPage stats={result.stats} finalScore={result.finalScore} results={result.results} />
+          : <ComingSoon title="지표 현황" />
+      } />
+      <Route path="/procurement/details"    element={<IndicatorDetailPage rows={rows} results={result?.results ?? []} />} />
+      <Route path="/procurement/register"   element={<DetailsPage rows={rows} onRefresh={refreshData} />} />
+
+      {/* 시뮬레이션 */}
+      <Route path="/simulation/current"  element={<ComingSoon title="현재 달성률" />} />
+      <Route path="/simulation/trend"    element={<ComingSoon title="추이 분석" />} />
+      <Route path="/simulation/simulate" element={<ComingSoon title="실적 시뮬레이션" />} />
+
+      {/* AI분석/지원 */}
+      <Route path="/ai/guide"       element={<ComingSoon title="AI 집행가이드" />} />
+      <Route path="/ai/regulations" element={<ComingSoon title="규정/가이드" />} />
+
+      {/* 데이터 관리 */}
+      <Route path="/data/uploads"   element={<ComingSoon title="업로드 기록" />} />
+      <Route path="/data/vendors"   element={<VendorList />} />
+      <Route path="/data/recommend" element={<VendorRecommend results={result?.results ?? []} />} />
+
+      {/* 구버전 경로 리다이렉트 */}
+      <Route path="/details"     element={<Navigate to="/procurement/register" replace />} />
+      <Route path="/vendors"     element={<Navigate to="/data/recommend" replace />} />
+      <Route path="/vendor-list" element={<Navigate to="/data/vendors" replace />} />
     </Routes>
   );
 
