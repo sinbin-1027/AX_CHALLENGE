@@ -938,11 +938,11 @@ export default function Dashboard({ results, totalScore, finalScore, stats, rows
       </div>
 
       {/* ── 목표대비 상세현황 + 시뮬레이션 ── */}
-      <div style={{ display: 'flex', gap: 14, marginTop: 14, alignItems: 'stretch' }}>
-        <div style={{ flex: '0 0 58%' }}>
+      <div style={{ display: 'flex', gap: 24, marginTop: 14, alignItems: 'stretch' }}>
+        <div style={{ width: '50%' }}>
           <DetailTable results={results} />
         </div>
-        <div style={{ flex: 1 }}>
+        <div style={{ width: '50%' }}>
           <Simulation results={results} rows={rows} finalScore={finalScore} />
         </div>
       </div>
