@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 
-const API_BASE = 'http://localhost:4001';
+const API_BASE = process.env.REACT_APP_API_URL;
 
 export default function RegisterPage() {
   const navigate = useNavigate();

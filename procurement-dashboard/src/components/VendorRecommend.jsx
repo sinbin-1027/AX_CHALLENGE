@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
 
-const API_BASE = 'http://localhost:4001';
+const API_BASE = process.env.REACT_APP_API_URL;
 
 // ── 상수 ─────────────────────────────────────────────────────────────────────
 

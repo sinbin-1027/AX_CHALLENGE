@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 
-const API_BASE = 'http://localhost:4001';
+const API_BASE = process.env.REACT_APP_API_URL;
 
 const CERT_FILTERS = [
   { value: '',                 label: '전체'     },

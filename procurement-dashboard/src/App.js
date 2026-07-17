@@ -13,7 +13,7 @@ import IndicatorStatusPage from './pages/IndicatorStatusPage';
 import IndicatorDetailPage from './pages/IndicatorDetailPage';
 import { calcEngine } from './utils/calcEngine';
 
-const API_BASE = 'http://localhost:4001';
+const API_BASE = process.env.REACT_APP_API_URL;
 
 const OVERRIDES = {
   headcount: 14,
