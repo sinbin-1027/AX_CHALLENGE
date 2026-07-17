@@ -70,6 +70,12 @@ cd backend && npm install
 
 ### 2. 환경변수 설정
 
+프론트엔드 루트에 `.env` 파일 생성 (`.env.example` 참고):
+
+```
+REACT_APP_API_URL=http://localhost:4001
+```
+
 `backend/.env` 파일 생성 (팀원 공유 필요, git 제외):
 
 ```
@@ -222,6 +228,27 @@ node scripts/checkData.js
 # 계산 엔진 결과 터미널 출력
 npm run test:calc
 ```
+
+---
+
+## 배포
+
+### 프론트엔드 — Vercel
+
+- **URL**: https://axchallenge01.vercel.app
+- **저장소**: `sinbin-1027/AX_CHALLENGE` (main 브랜치 자동 배포)
+- **Root Directory**: `procurement-dashboard`
+
+Vercel 환경변수 설정 (Settings → Environment Variables):
+
+| Key | Value |
+|---|---|
+| `CI` | `false` |
+| `REACT_APP_API_URL` | 백엔드 배포 URL (Railway 배포 후 업데이트) |
+
+### 백엔드 — 미배포 (예정: Railway)
+
+현재 백엔드는 로컬에서만 동작합니다. Railway 배포 후 `REACT_APP_API_URL`을 실제 URL로 업데이트 필요합니다.
 
 ---
 
