@@ -1,8 +1,9 @@
 import {
   TARGETS,
+  TOTAL_SCORE_WEIGHT,
+  TOTAL_POINTS,
   calcTargetAmount,
   calcAchievedPoints,
-  calcFinalScore,
 } from '../data/targets.js';
 
 const ONNURI    = '온누리상품권';
@@ -65,6 +66,7 @@ function aggregateActuals(rows) {
     nep:                  sumWhere(rows, r => isY(r['신제품인증(NEP)여부'])),
     green_product:        sumWhere(rows, r => isY(r['친환경제품'])),
     jawal_veteran:        sumWhere(rows, r => isY(r['자활용사촌제품'])),
+    innovative_product:   sumWhere(rows, r => goodsOrSvc(r) && isY(r['혁신제품여부'])),
     onnuri_voucher:       sumWhere(rows, r => r['구매구분'] === ONNURI),
   };
 }
@@ -119,8 +121,10 @@ export function calcEngine(rows, overrides = {}) {
     };
   });
 
-  const totalScore = results.reduce((acc, r) => acc + r.score, 0);
-  const finalScore = calcFinalScore(totalScore);
+  const totalScore  = results.reduce((acc, r) => acc + r.score, 0);
+  const scoreWeight = overrides.scoreWeight ?? TOTAL_SCORE_WEIGHT;
+  const totalPts    = overrides.totalPoints  ?? TOTAL_POINTS;
+  const finalScore  = (scoreWeight * totalScore) / totalPts;
 
   const stats = {
     totalPurchaseAll: baseAmounts.totalPurchase + (actuals.onnuri_voucher ?? 0),

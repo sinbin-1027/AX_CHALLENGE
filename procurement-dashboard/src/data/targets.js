@@ -141,6 +141,14 @@ export const TARGETS = [
     autoFullScore: false,
   },
   {
+    key: 'innovative_product',
+    label: '혁신제품',
+    type: 'goods_service_ratio',
+    rate: 0.03,
+    points: 0.5,
+    autoFullScore: false,
+  },
+  {
     key: 'onnuri_voucher',
     label: '온누리상품권',
     type: 'per_person',

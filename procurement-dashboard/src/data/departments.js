@@ -1,0 +1,30 @@
+export const DEPT_GROUP_CONFIGS = {
+  '기획관리': { scoreWeight: 4, totalPoints: 9.5,
+    overrides: { startup: { points: 0.5 } } },
+  '사업':     { scoreWeight: 4, totalPoints: 9.5,
+    overrides: { startup: { points: 0.5 } } },
+  '금융업무지원': { scoreWeight: 5, totalPoints: 10,
+    overrides: { startup: { points: 1.0 } } },
+  '지역본지부': { scoreWeight: 4, totalPoints: 10,
+    overrides: { startup: { points: 1.0 } } },
+  '연수': { scoreWeight: 4, totalPoints: 10,
+    overrides: { startup: { points: 0.5 } },
+    extraTargets: ['innovative_product'] },
+};
+
+export const DEPARTMENTS = [
+  { id: 'dept_01', name: '기업평가데이터실', group: '기획관리', headcount: 14,
+    targets: { green_product: 2247000, jawal_veteran: 1420000 } },
+  { id: 'dept_02', name: 'ICT운영실', group: '기획관리', headcount: 10,
+    targets: { green_product: 1800000, jawal_veteran: 1200000 } },
+  { id: 'dept_03', name: '제조AI지원처', group: '사업', headcount: 18,
+    targets: { green_product: 3000000, jawal_veteran: 1800000 } },
+  { id: 'dept_04', name: '글로벌협력처', group: '사업', headcount: 12,
+    targets: { green_product: 2000000, jawal_veteran: 1500000 } },
+  { id: 'dept_05', name: '서부권금융업무지원실', group: '금융업무지원', headcount: 8,
+    targets: { green_product: 1500000, jawal_veteran: 1000000 } },
+  { id: 'dept_06', name: '경남서부지부', group: '지역본지부', headcount: 20,
+    targets: { green_product: 3500000, jawal_veteran: 2000000 } },
+  { id: 'dept_07', name: '부산경남연수원', group: '연수', headcount: 15,
+    targets: { green_product: 2500000, jawal_veteran: 1600000 } },
+];
