@@ -210,6 +210,6 @@ export function calcAchievedPoints(target, actual, targetAmount, denominator) {
 }
 
 // 최종점수 계산
-export function calcFinalScore(achievedPointsTotal) {
-  return (TOTAL_SCORE_WEIGHT * achievedPointsTotal) / TOTAL_POINTS;
+export function calcFinalScore(achievedPointsTotal, scoreWeight = TOTAL_SCORE_WEIGHT, totalPoints = TOTAL_POINTS) {
+  return (scoreWeight * achievedPointsTotal) / totalPoints;
 }

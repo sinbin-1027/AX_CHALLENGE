@@ -1,6 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
-
-const API_BASE = process.env.REACT_APP_API_URL;
+import { useState, useEffect } from 'react';
 
 const KRW = (n) => (Number(n) ? Math.round(Number(n)).toLocaleString('ko-KR') + '원' : '-');
 
@@ -53,31 +51,6 @@ function emptyRow() {
   return row;
 }
 
-// 폼 행 → manual API 바디 변환
-function formToManualBody(row) {
-  return {
-    품목명:                      row['발주품목명']                || row['적요'] || '',
-    구매구분:                    row['구매구분']                  || '물품',
-    금액:                        Number(row['물품금액'])          || 0,
-    중소기업제품:                row['중소기업제품(연동)']        || 'N',
-    여성기업제품:                row['여성기업제품(연동)']        || 'N',
-    사회적기업:                  row['사회적기업']                || 'N',
-    사회적협동조합제품여부:      row['사회적협동조합제품여부']    || 'N',
-    장애인구매:                  row['장애인구매(연동)']          || 'N',
-    장애인표준사업장여부:        row['장애인표준사업장여부']      || 'N',
-    중증장애인제품:              row['중증장애인제품']            || 'N',
-    창업기업제품:                row['창업기업제품']              || 'N',
-    친환경제품:                  row['친환경제품']                || 'N',
-    자활용사촌제품:              row['자활용사촌제품']            || 'N',
-    시범구매여부:                row['시범구매여부']              || 'N',
-    기술개발제품대상품목조회:    row['기술개발제품대상품목조회'] || 'N',
-    신제품인증NEP여부:           row['신제품인증(NEP)여부']       || 'N',
-    신제품인증NEP대상품목:       row['신제품인증(NEP) 대상품목'] || 'N',
-    혁신제품여부:                row['혁신제품여부']              || 'N',
-    집행구분:                    row['집행구분']                  || 'Y',
-  };
-}
-
 // ── 행 추가 폼 ───────────────────────────────────────────────────────────────
 function AddRowForm({ onAdd, onCancel }) {
   const [form, setForm] = useState(emptyRow());
@@ -92,7 +65,7 @@ function AddRowForm({ onAdd, onCancel }) {
 
   return (
     <div style={F.card}>
-      <div style={F.title}>새 행 입력 (저장 버튼 클릭 시 DB에 저장됩니다)</div>
+      <div style={F.title}>새 행 입력</div>
       <form onSubmit={handleSubmit}>
         <div style={F.grid}>
           {[
@@ -224,24 +197,20 @@ function Toast({ show }) {
 }
 
 // ── 메인 페이지 ──────────────────────────────────────────────────────────────
-export default function DetailsPage({ rows, onRefresh }) {
+// Props:
+//   rows        — App.js의 activeRows (__source, __결의번호, 제외여부 포함)
+//   excludedSet — App.js가 관리하는 현재 부서의 제외 결의번호 Set
+//   onSave      — (excludedSet, newManualRows) 콜백
+export default function DetailsPage({ rows, excludedSet: excludedSetProp = new Set(), onSave, onRefresh }) {
   const [excludedSet, setExcludedSet] = useState(new Set());
   const [localNewRows, setLocalNewRows] = useState([]);
-  const [showForm, setShowForm]   = useState(false);
-  const [saving, setSaving]       = useState(false);
-  const [resetting, setResetting] = useState(false);
-  const [toast, setToast]         = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [toast, setToast]       = useState(false);
 
-  // rows가 갱신되면 제외여부 동기화
+  // App.js의 excludedSetProp이 바뀌면 로컬 상태 동기화
   useEffect(() => {
-    const excluded = new Set(
-      rows
-        .filter(r => r.__source === 'raw' && r['제외여부'] === 1)
-        .map(r => r.__결의번호)
-        .filter(Boolean)
-    );
-    setExcludedSet(excluded);
-  }, [rows]);
+    setExcludedSet(new Set(excludedSetProp));
+  }, [excludedSetProp]);
 
   const toggleExclude = (bizNo) => {
     if (!bizNo) return;
@@ -257,71 +226,25 @@ export default function DetailsPage({ rows, onRefresh }) {
     setShowForm(false);
   };
 
-  const handleDeleteManual = useCallback(async (id) => {
-    try {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/api/purchases/manual/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (onRefresh) await onRefresh().catch(() => {});
-    } catch {
-      alert('삭제 중 오류가 발생했습니다.');
-    }
-  }, [onRefresh]);
-
-  // [저장] 버튼
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const token   = localStorage.getItem('token');
-      const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
-
-      // 1. 제외 여부 일괄 저장
-      await fetch(`${API_BASE}/api/purchases/exclude`, {
-        method: 'PUT', headers,
-        body: JSON.stringify({ excludeIds: [...excludedSet] }),
-      });
-
-      // 2. 미저장 수동 행 저장
-      for (const row of localNewRows) {
-        await fetch(`${API_BASE}/api/purchases/manual`, {
-          method: 'POST', headers,
-          body: JSON.stringify(formToManualBody(row)),
-        });
-      }
-      setLocalNewRows([]);
-
-      // 3. 재조회 → calcEngine 갱신
-      if (onRefresh) await onRefresh().catch(() => {});
-
-      // 4. 토스트
-      setToast(true);
-      setTimeout(() => setToast(false), 2500);
-    } catch (e) {
-      console.error('저장 오류:', e);
-      alert('저장 중 오류가 발생했습니다.');
-    } finally {
-      setSaving(false);
-    }
+  const handleDeleteManual = (id) => {
+    setLocalNewRows(prev => prev.filter(r => r.__id !== id));
   };
 
-  const handleReset = async () => {
-    if (!window.confirm('모든 데이터를 초기화하시겠습니까?')) return;
-    setResetting(true);
-    try {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/api/purchases/reset`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setLocalNewRows([]);
-      if (onRefresh) await onRefresh().catch(() => {});
-    } catch {
-      alert('초기화 중 오류가 발생했습니다.');
-    } finally {
-      setResetting(false);
-    }
+  // [저장] — API 호출 없이 onSave 콜백으로 App.js에 위임
+  const handleSave = () => {
+    console.log('localNewRows:', localNewRows);
+    if (onSave) onSave(excludedSet, localNewRows);
+    setLocalNewRows([]);
+    setToast(true);
+    setTimeout(() => setToast(false), 2500);
+  };
+
+  // [초기화] — 로컬 상태 초기화 후 App.js에 빈 excludedSet 전달
+  const handleReset = () => {
+    if (!window.confirm('제외 설정과 미저장 행을 초기화하시겠습니까?')) return;
+    setLocalNewRows([]);
+    setExcludedSet(new Set());
+    if (onSave) onSave(new Set(), []);
   };
 
   const allRows = [...rows, ...localNewRows];
@@ -352,18 +275,13 @@ export default function DetailsPage({ rows, onRefresh }) {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button style={P.resetBtn} onClick={handleReset} disabled={resetting}>
-            {resetting ? '초기화 중...' : '🗑 초기화'}
-          </button>
+          <button style={P.resetBtn} onClick={handleReset}>🗑 초기화</button>
           <button style={P.addBtn} onClick={() => setShowForm(v => !v)}>
             {showForm ? '✕ 닫기' : '+ 행 추가'}
           </button>
-          <button
-            style={{ ...P.saveBtn, opacity: saving ? 0.7 : 1 }}
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saving ? '저장 중...' : isDirty ? '💾 저장 *' : '💾 저장'}
+          <button style={P.refreshBtn} onClick={() => onRefresh?.()}>🔄 조회</button>
+          <button style={P.saveBtn} onClick={handleSave}>
+            {isDirty ? '💾 저장 *' : '💾 저장'}
           </button>
         </div>
       </div>
@@ -396,7 +314,7 @@ export default function DetailsPage({ rows, onRefresh }) {
               {allRows.length === 0 && (
                 <tr>
                   <td colSpan={TABLE_COLS.length + 3} style={{ ...P.td, textAlign: 'center', color: '#aaa', padding: '40px 0' }}>
-                    업로드된 데이터가 없습니다.
+                    데이터가 없습니다.
                   </td>
                 </tr>
               )}
@@ -436,6 +354,7 @@ const P = {
   addBtn:       { padding: '9px 18px', background: '#3182F6', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer' },
   saveBtn:      { padding: '9px 18px', background: '#00B493', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer' },
   resetBtn:     { padding: '9px 14px', background: '#FFFFFF', color: '#F04452', border: '1px solid #F2F4F6', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' },
+  refreshBtn:   { padding: '9px 18px', background: '#FFFFFF', color: '#3182F6', border: '1px solid #3182F6', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer' },
   legend:       { display: 'flex', gap: 16, alignItems: 'center', marginBottom: 10, fontSize: 12, color: '#8B95A1' },
   dot:          { display: 'inline-block', width: 12, height: 12, borderRadius: 3, marginRight: 4 },
   tableCard:    { background: '#FFFFFF', borderRadius: 16, border: '1px solid #F2F4F6', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden' },

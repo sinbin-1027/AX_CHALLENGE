@@ -7,6 +7,7 @@ import DetailsPage from './pages/DetailsPage';
 import VendorRecommend from './components/VendorRecommend';
 import VendorList from './components/VendorList';
 import ComingSoon from './pages/ComingSoon';
+import SimulationPage from './pages/SimulationPage';
 import IndicatorStatusPage from './pages/IndicatorStatusPage';
 import IndicatorDetailPage from './pages/IndicatorDetailPage';
 import { calcEngine } from './utils/calcEngine';
@@ -15,45 +16,106 @@ import demoData from './data/demoData';
 
 // ── 메인 레이아웃 ─────────────────────────────────────────────────────────────
 function AppLayout() {
-  const [deptId, setDeptId]                   = useState('dept_01');
-  const [uploadedRows, setUploadedRows]       = useState(null);   // null = 데모 데이터 사용
-  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [deptId, setDeptId]                       = useState('dept_01');
+  const [uploadedRowsMap, setUploadedRowsMap]     = useState({});  // { deptId: rows[] }
+  const [showUploadModal, setShowUploadModal]     = useState(false);
+  const [excludedSetMap, setExcludedSetMap]       = useState({});  // { deptId: Set<결의번호> }
+  const [manualRowsMap, setManualRowsMap]         = useState({});  // { deptId: rows[] }
 
-  // 부서 변경 → 업로드 데이터 초기화
-  const handleDeptChange = (e) => {
-    setDeptId(e.target.value);
-    setUploadedRows(null);
-  };
+  const handleDeptChange = (e) => setDeptId(e.target.value);
 
-  // FileUpload 완료 콜백
-  const handleDataLoad = (rows) => {
-    setUploadedRows(rows);
+  // FileUpload 완료 콜백 — 기존 업로드 데이터와 합치기 (결의번호 중복 제외)
+  const handleDataLoad = (newUploadedRows) => {
+    setUploadedRowsMap(prev => {
+      const existingUploaded = prev[deptId] ?? [];
+      const deptName = DEPARTMENTS.find(d => d.id === deptId)?.name;
+      const demoRows = demoData[deptName] ?? [];
+      const existingNos = new Set([
+        ...demoRows.map(r => r['결의번호']),
+        ...existingUploaded.map(r => r['결의번호']),
+      ]);
+      const newRows = newUploadedRows.filter(r => !existingNos.has(r['결의번호']));
+      return { ...prev, [deptId]: [...existingUploaded, ...newRows] };
+    });
     setShowUploadModal(false);
   };
 
-  // 업로드 우선, 없으면 demoData — calcEngine까지 한 번에 처리
-  const { activeRows, result } = useMemo(() => {
-    const rows = uploadedRows ?? demoData[deptId] ?? [];
-    const dept = DEPARTMENTS.find(d => d.id === deptId);
-    if (!dept || !rows.length) return { activeRows: rows, result: null };
+  // DetailsPage 저장 콜백 — excludedSet 반영 + 수동행 추가
+  const handleSave = (newExcludedSet, newManualRows) => {
+    console.log('handleSave:', newManualRows);
+    setExcludedSetMap(prev => ({ ...prev, [deptId]: new Set(newExcludedSet) }));
+    if (newManualRows.length > 0) {
+      setManualRowsMap(prev => {
+        const ts = Date.now();
+        const updated = {
+          ...prev,
+          [deptId]: [
+            ...(prev[deptId] ?? []),
+            ...newManualRows.map((r, i) => ({
+              ...r,
+              __source:   'manual',
+              __isNew:    false,
+              __id:       `m_${ts}_${i}`,
+              __결의번호: `manual_${ts}_${i}`,
+              물품금액:   Number(r['물품금액']) || Number(r['금액']) || 0,
+            })),
+          ],
+        };
+        console.log('updated manualRowsMap:', updated);
+        return updated;
+      });
+    }
+  };
+
+  // 데모 + 업로드 합치기 — 결의번호 기준 중복 제거,
+  // __source / __결의번호 / 제외여부 부여, calcEngine은 비제외 행만
+  const { activeRows, newRowCount, result } = useMemo(() => {
+    const dept         = DEPARTMENTS.find(d => d.id === deptId);
+    const demoRows     = demoData[dept?.name] ?? [];
+    const uploadedRows = uploadedRowsMap[deptId] ?? [];
+    const manualRows   = (manualRowsMap[deptId] ?? []).map(r => ({ ...r, __source: 'manual' }));
+    const currentExcludedSet = excludedSetMap[deptId] ?? new Set();
+
+    const demoNos = new Set(demoRows.map(r => r['결의번호']));
+    const newRows = uploadedRows.filter(r => !demoNos.has(r['결의번호']));
+
+    // raw 행마다 __source / __결의번호 / 제외여부 부여
+    const rawRows = [
+      ...demoRows.map((r, i) => ({ ...r, __결의번호: String(r['결의번호'] ?? `${deptId}_d${i}`) })),
+      ...newRows.map(r       => ({ ...r, __결의번호: String(r['결의번호'] ?? '')              })),
+    ].map(r => ({
+      ...r,
+      __source: 'raw',
+      제외여부: currentExcludedSet.has(r.__결의번호) ? 1 : 0,
+    }));
+
+    const activeRows = [...rawRows, ...manualRows];
+
+    if (!dept || !activeRows.length) return { activeRows, newRowCount: newRows.length, result: null };
+
+    // calcEngine: 제외되지 않은 raw 행 + 모든 수동 행
+    const calcRows = rawRows.filter(r => r['제외여부'] !== 1).concat(manualRows);
 
     const groupConfig = DEPT_GROUP_CONFIGS[dept.group];
     const overrides = {
-      headcount:    dept.headcount,
-      fixedTargets: dept.targets,
-      scoreWeight:  groupConfig.scoreWeight,
-      totalPoints:  groupConfig.totalPoints,
+      headcount:       dept.headcount,
+      fixedTargets:    dept.targets,
+      scoreWeight:     groupConfig.scoreWeight,
+      totalPoints:     groupConfig.totalPoints,
+      targetOverrides: groupConfig.overrides ?? {},
     };
 
     let result = null;
-    try { result = calcEngine(rows, overrides); }
-    catch (e) { console.error('calcEngine 오류:', e); }
+    if (calcRows.length) {
+      try { result = calcEngine(calcRows, overrides); }
+      catch (e) { console.error('calcEngine 오류:', e); }
+    }
 
-    return { activeRows: rows, result };
-  }, [uploadedRows, deptId]);
+    return { activeRows, newRowCount: newRows.length, result };
+  }, [uploadedRowsMap, excludedSetMap, manualRowsMap, deptId]);
 
-  const selectedDept = DEPARTMENTS.find(d => d.id === deptId);
-  const isUploaded   = uploadedRows !== null;
+  const selectedDept        = DEPARTMENTS.find(d => d.id === deptId);
+  const selectedGroupConfig = DEPT_GROUP_CONFIGS[selectedDept?.group];
 
   return (
     <div style={S.root}>
@@ -69,8 +131,8 @@ function AppLayout() {
               ))}
             </select>
             <span style={S.groupBadge}>{selectedDept?.group}</span>
-            <span style={{ ...S.sourceBadge, ...(isUploaded ? S.sourceBadgeUploaded : S.sourceBadgeDemo) }}>
-              {isUploaded ? '📂 업로드 데이터' : '🎯 데모 데이터'}
+            <span style={{ ...S.sourceBadge, ...(newRowCount > 0 ? S.sourceBadgeUploaded : S.sourceBadgeDemo) }}>
+              {newRowCount > 0 ? `📂 데모 + 업로드 데이터 (추가 ${newRowCount}건)` : '🎯 데모 데이터'}
             </span>
           </div>
           <div style={S.headerRight}>
@@ -91,6 +153,7 @@ function AppLayout() {
                   finalScore={result.finalScore}
                   stats={result.stats}
                   rows={activeRows}
+                  maxScore={selectedGroupConfig?.scoreWeight}
                 />
               ) : <ComingSoon title="데이터 없음" />
             } />
@@ -106,12 +169,26 @@ function AppLayout() {
                 : <ComingSoon title="지표 현황" />
             } />
             <Route path="/procurement/details"  element={<IndicatorDetailPage rows={activeRows} results={result?.results ?? []} />} />
-            <Route path="/procurement/register" element={<DetailsPage rows={activeRows} onRefresh={() => {}} />} />
+            <Route path="/procurement/register" element={
+              <DetailsPage
+                rows={activeRows}
+                excludedSet={excludedSetMap[deptId] ?? new Set()}
+                onSave={handleSave}
+                onRefresh={() => {}}
+              />
+            } />
 
             {/* 시뮬레이션 */}
             <Route path="/simulation/current"  element={<ComingSoon title="현재 달성률" />} />
             <Route path="/simulation/trend"    element={<ComingSoon title="추이 분석" />} />
-            <Route path="/simulation/simulate" element={<ComingSoon title="실적 시뮬레이션" />} />
+            <Route path="/simulation/simulate" element={
+              <SimulationPage
+                rows={activeRows}
+                results={result?.results ?? []}
+                finalScore={result?.finalScore ?? 0}
+                maxScore={selectedGroupConfig?.scoreWeight}
+              />
+            } />
 
             {/* AI분석/지원 */}
             <Route path="/ai/guide"       element={<ComingSoon title="AI 집행가이드" />} />
