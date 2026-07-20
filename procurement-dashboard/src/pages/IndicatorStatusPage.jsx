@@ -1,3 +1,6 @@
+import { useState } from 'react';
+import { DetailModal, TargetModal } from '../components/Dashboard';
+
 const KRW = (n) => n == null ? '-' : Math.round(n).toLocaleString('ko-KR') + '원';
 const PCT = (r) => r == null ? '-' : (r * 100).toFixed(1) + '%';
 
@@ -36,16 +39,22 @@ const GROUPS = [
     label: '기타',
     color: '#8B95A1',
     bg:    '#F2F4F6',
-    keys:  ['green_product', 'jawal_veteran', 'onnuri_voucher'],
+    keys:  ['green_product', 'jawal_veteran', 'onnuri_voucher', 'innovative_product'],
   },
 ];
 
 // ── KPI 카드 ─────────────────────────────────────────────────────────────────
-function KpiCard({ icon, title, value, unit, sub, valueColor }) {
+function KpiCard({ icon, title, value, unit, sub, valueColor, onClick }) {
   return (
-    <div style={S.kpiCard}>
+    <div
+      style={{ ...S.kpiCard, ...(onClick ? S.kpiCardClickable : {}) }}
+      onClick={onClick}
+    >
       <div style={S.kpiIcon}>{icon}</div>
-      <div style={S.kpiTitle}>{title}</div>
+      <div style={S.kpiTitle}>
+        {title}
+        {onClick && <span style={S.kpiHint}>상세 보기 →</span>}
+      </div>
       <div style={S.kpiValueRow}>
         <span style={{ ...S.kpiValue, color: valueColor ?? '#191F28' }}>{value}</span>
         {unit && <span style={S.kpiUnit}>{unit}</span>}
@@ -57,7 +66,6 @@ function KpiCard({ icon, title, value, unit, sub, valueColor }) {
 
 // ── 지표 카드 ─────────────────────────────────────────────────────────────────
 function IndicatorCard({ r }) {
-  // denominator === 0 이고 achieved === true → 자동만점 (denominator_zero 조건)
   const isAutoFull = r.denominator === 0 && r.achieved === true;
   const dispRate   = isAutoFull ? 1 : (r.achievementRate ?? 0);
   const barWidth   = Math.min(dispRate * 100, 100);
@@ -66,7 +74,6 @@ function IndicatorCard({ r }) {
 
   return (
     <div style={S.indCard}>
-      {/* 헤더: 지표명 + 뱃지 */}
       <div style={S.indHeader}>
         <span style={S.indLabel}>{r.label}</span>
         {isAutoFull ? (
@@ -78,7 +85,6 @@ function IndicatorCard({ r }) {
         )}
       </div>
 
-      {/* 금액 정보 */}
       <div style={S.indRow}>
         <span style={S.indLbl}>목표액</span>
         <span style={S.indVal}>{noTarget ? '-' : KRW(r.targetAmount)}</span>
@@ -88,7 +94,6 @@ function IndicatorCard({ r }) {
         <span style={S.indVal}>{KRW(r.actual)}</span>
       </div>
 
-      {/* 달성률 + 프로그레스바 */}
       <div style={{ marginTop: 10 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
           <span style={{ fontSize: 11, color: '#8B95A1' }}>달성률</span>
@@ -105,7 +110,10 @@ function IndicatorCard({ r }) {
 }
 
 // ── 메인 페이지 ──────────────────────────────────────────────────────────────
-export default function IndicatorStatusPage({ stats, finalScore, results }) {
+export default function IndicatorStatusPage({ stats, finalScore, results, rows = [], isYeonsoo = false }) {
+  const [showDetail,      setShowDetail]      = useState(false);
+  const [showTargetModal, setShowTargetModal] = useState(false);
+
   const list      = results ?? [];
   const resultMap = Object.fromEntries(list.map(r => [r.key, r]));
   const achieved  = list.filter(r => r.achieved);
@@ -118,17 +126,22 @@ export default function IndicatorStatusPage({ stats, finalScore, results }) {
   return (
     <div style={S.page}>
 
+      {showDetail      && <DetailModal  rows={rows}     onClose={() => setShowDetail(false)} />}
+      {showTargetModal && <TargetModal  results={list}  onClose={() => setShowTargetModal(false)} />}
+
       {/* KPI 카드 5개 */}
       <div style={S.kpiRow}>
         <KpiCard
           icon="🛒" title="총 구매액"
           value={KRW(stats?.totalPurchaseAll)}
           sub={`전체 ${stats?.rowCount?.toLocaleString('ko-KR') ?? 0}건`}
+          onClick={() => setShowDetail(true)}
         />
         <KpiCard
           icon="🎯" title="공공구매 목표액"
           value={KRW(stats?.totalTargetSum)}
           sub="목표 합산"
+          onClick={() => setShowTargetModal(true)}
         />
         <KpiCard
           icon="📦" title="공공구매 지출액"
@@ -145,7 +158,6 @@ export default function IndicatorStatusPage({ stats, finalScore, results }) {
           icon="⭐" title="공공구매 점수"
           value={finalScore?.toFixed(2) ?? '-'}
           unit="/ 4.00점"
-          sub={(finalScore ?? 0) >= 3 ? '우수' : (finalScore ?? 0) >= 2 ? '보통' : '미흡'}
           valueColor={scoreColor}
         />
       </div>
@@ -157,14 +169,12 @@ export default function IndicatorStatusPage({ stats, finalScore, results }) {
 
           return (
             <div key={group.label} style={S.groupRow}>
-              {/* 그룹 레이블 */}
               <div style={{ ...S.groupLabel, background: group.bg, borderLeft: `4px solid ${group.color}` }}>
                 <span style={{ color: group.color, fontSize: 12, fontWeight: 700, whiteSpace: 'pre-line', lineHeight: 1.5, textAlign: 'center' }}>
                   {group.label}
                 </span>
               </div>
 
-              {/* 지표 카드들 */}
               <div style={S.groupCards}>
                 {groupResults.map(r => <IndicatorCard key={r.key} r={r} />)}
               </div>
@@ -181,14 +191,16 @@ export default function IndicatorStatusPage({ stats, finalScore, results }) {
 const S = {
   page: { fontFamily: "-apple-system, 'Pretendard', 'Apple SD Gothic Neo', sans-serif" },
 
-  kpiRow:      { display: 'flex', gap: 14, marginBottom: 18 },
-  kpiCard:     { flex: 1, background: '#FFFFFF', borderRadius: 16, padding: '18px 18px 14px', border: '1px solid #F2F4F6', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', minWidth: 0 },
-  kpiIcon:     { fontSize: 20, marginBottom: 8 },
-  kpiTitle:    { fontSize: 12, color: '#8B95A1', marginBottom: 6, fontWeight: 500 },
-  kpiValueRow: { display: 'flex', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' },
-  kpiValue:    { fontSize: 20, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.5px' },
-  kpiUnit:     { fontSize: 12, color: '#8B95A1' },
-  kpiSub:      { fontSize: 12, color: '#8B95A1', marginTop: 5 },
+  kpiRow:          { display: 'flex', gap: 14, marginBottom: 18 },
+  kpiCard:         { flex: 1, background: '#FFFFFF', borderRadius: 16, padding: '18px 18px 14px', border: '1px solid #F2F4F6', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', minWidth: 0 },
+  kpiCardClickable: { cursor: 'pointer', transition: 'border-color 0.15s' },
+  kpiIcon:         { fontSize: 20, marginBottom: 8 },
+  kpiTitle:        { fontSize: 12, color: '#8B95A1', marginBottom: 6, fontWeight: 500, display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  kpiHint:         { fontSize: 11, color: '#3182F6', fontWeight: 500 },
+  kpiValueRow:     { display: 'flex', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' },
+  kpiValue:        { fontSize: 20, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.5px' },
+  kpiUnit:         { fontSize: 12, color: '#8B95A1' },
+  kpiSub:          { fontSize: 12, color: '#8B95A1', marginTop: 5 },
 
   groupRow:   { display: 'flex', background: '#FFFFFF', borderRadius: 14, border: '1px solid #F2F4F6', overflow: 'hidden' },
   groupLabel: { width: 80, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px 8px' },

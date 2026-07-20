@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 
 const KRW = (n) => n == null ? '-' : Math.round(n).toLocaleString('ko-KR') + '원';
 const PCT = (r) => r == null ? '-' : (r * 100).toFixed(1) + '%';
@@ -12,16 +12,17 @@ const INDICATORS = [
   { key: 'women_service',       label: '여성기업(용역)' },
   { key: 'women_construction',  label: '여성기업(공사)' },
   { key: 'disabled_enterprise', label: '장애인기업'     },
-  { key: 'standard_workshop',   label: '표준사업장'     },
+  { key: 'standard_workshop',   label: '장애인표준사업장' },
   { key: 'severe_disabled',     label: '중증장애인'     },
   { key: 'social_enterprise',   label: '사회적기업'     },
-  { key: 'cooperative',         label: '협동조합'       },
+  { key: 'cooperative',         label: '사회적협동조합' },
   { key: 'tech_development',    label: '기술개발제품'   },
   { key: 'pilot_purchase',      label: '시범구매'       },
   { key: 'nep',                 label: 'NEP'            },
-  { key: 'green_product',       label: '녹색제품'       },
-  { key: 'jawal_veteran',       label: '자활용사촌'     },
-  { key: 'onnuri_voucher',      label: '온누리상품권'   },
+  { key: 'green_product',        label: '녹색제품'       },
+  { key: 'jawal_veteran',        label: '자활용사촌'     },
+  { key: 'onnuri_voucher',       label: '온누리상품권'   },
+  { key: 'innovative_product',   label: '혁신제품'       },
 ];
 
 // ── 인증 뱃지 매핑 ────────────────────────────────────────────────────────────
@@ -31,15 +32,16 @@ const CERT_DEFS = [
   { key: '여성기업제품(연동)',       label: '여성기업',   color: '#E91E8C', bg: '#FDE8F4', checkY: true  },
   { key: '창업기업제품',             label: '창업기업',   color: '#7C3AED', bg: '#EDE8FB', checkY: true  },
   { key: '장애인구매(연동)',         label: '장애인기업', color: '#FF6B00', bg: '#FFF0E6', checkY: true  },
-  { key: '장애인표준사업장여부',     label: '표준사업장', color: '#0891B2', bg: '#E0F2FE', checkY: true  },
+  { key: '장애인표준사업장여부',     label: '장애인표준사업장', color: '#0891B2', bg: '#E0F2FE', checkY: true  },
   { key: '중증장애인제품',           label: '중증장애인', color: '#DC2626', bg: '#FEE2E2', checkY: true  },
   { key: '사회적기업',               label: '사회적기업', color: '#00B493', bg: '#E6F7F4', checkY: true  },
-  { key: '사회적협동조합제품여부',   label: '협동조합',   color: '#059669', bg: '#ECFDF5', checkY: true  },
+  { key: '사회적협동조합제품여부',   label: '사회적협동조합', color: '#059669', bg: '#ECFDF5', checkY: true  },
   { key: '친환경제품',               label: '녹색제품',   color: '#65A30D', bg: '#F0FDF4', checkY: true  },
   { key: '자활용사촌제품',           label: '자활용사촌', color: '#92400E', bg: '#FEF3C7', checkY: true  },
   { key: '시범구매여부',             label: '시범구매',   color: '#1D4ED8', bg: '#DBEAFE', checkY: true  },
   { key: '기술개발제품대상품목조회', label: '기술개발',   color: '#7C3AED', bg: '#EDE8FB', checkY: false }, // isNotNA
   { key: '신제품인증(NEP)여부',      label: 'NEP',        color: '#F04452', bg: '#FFF0F1', checkY: true  },
+  { key: '혁신제품여부',             label: '혁신제품',   color: '#B45309', bg: '#FEF3C7', checkY: true  },
 ];
 
 // ── 헬퍼 ─────────────────────────────────────────────────────────────────────
@@ -72,6 +74,7 @@ function filterRows(rows, key) {
     case 'green_product':       return rows.filter(r => isY(r['친환경제품']));
     case 'jawal_veteran':       return rows.filter(r => isY(r['자활용사촌제품']));
     case 'onnuri_voucher':      return rows.filter(r => r['구매구분'] === '온누리상품권');
+    case 'innovative_product':  return rows.filter(r => gOrS(r)  && isY(r['혁신제품여부']));
     default: return [];
   }
 }
@@ -94,8 +97,18 @@ function CertBadge({ label, color, bg }) {
 
 // ── 메인 페이지 ──────────────────────────────────────────────────────────────
 
-export default function IndicatorDetailPage({ rows = [], results = [] }) {
+export default function IndicatorDetailPage({ rows = [], results = [], isYeonsoo = false }) {
   const [selectedKey, setSelectedKey] = useState('sme');
+
+  useEffect(() => {
+    if (!isYeonsoo && selectedKey === 'innovative_product') {
+      setSelectedKey('sme');
+    }
+  }, [isYeonsoo, selectedKey]);
+
+  const visibleIndicators = isYeonsoo
+    ? INDICATORS
+    : INDICATORS.filter(i => i.key !== 'innovative_product');
 
   const result   = results.find(r => r.key === selectedKey);
   const indLabel = INDICATORS.find(i => i.key === selectedKey)?.label ?? '';
@@ -118,7 +131,7 @@ export default function IndicatorDetailPage({ rows = [], results = [] }) {
       <div style={S.selectBar}>
         <span style={S.selectLabel}>지표 선택</span>
         <select value={selectedKey} onChange={e => setSelectedKey(e.target.value)} style={S.select}>
-          {INDICATORS.map(i => <option key={i.key} value={i.key}>{i.label}</option>)}
+          {visibleIndicators.map(i => <option key={i.key} value={i.key}>{i.label}</option>)}
         </select>
         <span style={S.selectHint}>{indLabel} 조건에 해당하는 행 {filteredRows.length}건</span>
       </div>

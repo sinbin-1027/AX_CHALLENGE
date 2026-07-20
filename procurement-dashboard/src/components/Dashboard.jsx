@@ -3,13 +3,6 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ReferenceLine, Cell, ResponsiveContainer,
 } from 'recharts';
-import { calcEngine } from '../utils/calcEngine';
-
-// 시뮬레이션용 기본 OVERRIDES (App.js와 동기화)
-const SIM_OVERRIDES = {
-  headcount: 14,
-  fixedTargets: { green_product: 2247000, jawal_veteran: 1420000 },
-};
 
 // ── 포맷 ─────────────────────────────────────────────────────────────────────
 const KRW = (n) => n == null ? '-' : Math.round(n).toLocaleString('ko-KR') + '원';
@@ -46,19 +39,94 @@ function KpiCard({ icon, title, value, unit, sub, valueColor, onClick }) {
   );
 }
 
+// ── 지표별 목표액 모달 ────────────────────────────────────────────────────────
+const BASIS_TEXT = {
+  sme:                '총구매액 × 80%',
+  startup:            '총구매액 × 15%',
+  women_goods:        '물품구매액 × 5%',
+  women_service:      '용역구매액 × 5%',
+  women_construction: '공사구매액 × 3%',
+  social_enterprise:  '(물품+용역) × 5%',
+  cooperative:        '(물품+용역) × 0.1%',
+  disabled_enterprise:'총구매액 × 1%',
+  standard_workshop:  '(물품+용역) × 0.8%',
+  severe_disabled:    '(물품+용역) × 1.1%',
+  tech_development:   '중소기업물품 × 20%',
+  pilot_purchase:     '중소기업물품 × 1.5%',
+  nep:                'NEP대상품목 × 20%',
+  green_product:      '고정 목표액',
+  jawal_veteran:      '고정 목표액',
+  innovative_product: '(물품+용역) × 3%',
+  onnuri_voucher:     '부서인원 × 250,000원',
+};
+
+export function TargetModal({ results, onClose }) {
+  const total = results.reduce((s, r) => s + r.targetAmount, 0);
+  return (
+    <div style={TM.overlay} onClick={onClose}>
+      <div style={TM.panel} onClick={e => e.stopPropagation()}>
+        <div style={TM.header}>
+          <div style={TM.title}>지표별 목표액 현황</div>
+          <button style={TM.closeBtn} onClick={onClose}>✕</button>
+        </div>
+        <div style={TM.body}>
+          <table style={TM.table}>
+            <thead>
+              <tr>
+                <th style={TM.th}>지표명</th>
+                <th style={TM.th}>목표액 산출기준</th>
+                <th style={{ ...TM.th, textAlign: 'right' }}>목표액</th>
+              </tr>
+            </thead>
+            <tbody>
+              {results.map((r, i) => (
+                <tr key={r.key} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                  <td style={{ ...TM.td, fontWeight: 600 }}>{r.label}</td>
+                  <td style={{ ...TM.td, color: COLOR.subtext, fontSize: 12 }}>
+                    {BASIS_TEXT[r.key] ?? '-'}
+                  </td>
+                  <td style={{ ...TM.td, textAlign: 'right', fontWeight: 600 }}>
+                    {r.targetAmount > 0 ? KRW(r.targetAmount) : '-'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ background: '#f0f4f8', fontWeight: 700 }}>
+                <td style={TM.td} colSpan={2}>합계</td>
+                <td style={{ ...TM.td, textAlign: 'right', color: COLOR.primary }}>{KRW(total)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const TM = {
+  overlay: { position: 'fixed', inset: 0, background: 'rgba(25,31,40,0.48)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  panel:   { background: '#FFFFFF', borderRadius: 20, width: 600, maxWidth: '90vw', maxHeight: '82vh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,0.14)' },
+  header:  { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #F2F4F6', flexShrink: 0 },
+  title:   { fontSize: 16, fontWeight: 700, color: COLOR.text, letterSpacing: '-0.3px' },
+  closeBtn:{ background: 'none', border: 'none', fontSize: 18, color: COLOR.subtext, cursor: 'pointer', padding: '2px 6px', borderRadius: 8 },
+  body:    { overflowY: 'auto', flex: 1 },
+  table:   { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
+  th:      { padding: '10px 16px', fontWeight: 600, color: COLOR.subtext, borderBottom: '1px solid #F2F4F6', textAlign: 'left', position: 'sticky', top: 0, background: '#F9FAFB', fontSize: 12 },
+  td:      { padding: '11px 16px', borderBottom: '1px solid #F2F4F6', color: COLOR.text, whiteSpace: 'nowrap' },
+};
+
 // ── 지출 상세 모달 ────────────────────────────────────────────────────────────
 const DETAIL_COLS = [
-  { key: '발의일자',        label: '발의일자',    align: 'left'  },
+  { key: '결의번호',        label: '결의번호',    align: 'left'  },
   { key: '구매구분',        label: '구매구분',    align: 'left'  },
-  { key: '부서명',          label: '부서명',      align: 'left'  },
-  { key: '적요',            label: '적요',        align: 'left'  },
   { key: '수령인사업자명',  label: '거래처',      align: 'left'  },
-  { key: '발주품목명',      label: '품목명',      align: 'left'  },
+  { key: '적요',            label: '적요',        align: 'left'  },
   { key: '예산명',          label: '예산명',      align: 'left'  },
   { key: '물품금액',        label: '금액',        align: 'right' },
 ];
 
-function DetailModal({ rows, onClose }) {
+export function DetailModal({ rows, onClose }) {
   const total = rows.reduce((s, r) => s + (Number(r['물품금액']) || 0), 0);
 
   return (
@@ -79,7 +147,7 @@ function DetailModal({ rows, onClose }) {
           <table style={M.table}>
             <thead>
               <tr>
-                <th style={{ ...M.th, textAlign: 'center', width: 40 }}>No.</th>
+                <th style={{ ...M.th, textAlign: 'center', width: 40 }}>순번</th>
                 {DETAIL_COLS.map(c => (
                   <th key={c.key} style={{ ...M.th, textAlign: c.align }}>{c.label}</th>
                 ))}
@@ -299,9 +367,9 @@ const MODAL_GROUPS = [
   { label: '여성기업(용역)', key: 'women_service' },
   { label: '여성기업(공사)', key: 'women_construction' },
   { label: '사회적기업',     key: 'social_enterprise' },
-  { label: '협동조합',       key: 'cooperative' },
+  { label: '사회적협동조합', key: 'cooperative' },
   { label: '장애인기업',     key: 'disabled_enterprise' },
-  { label: '표준사업장',     key: 'standard_workshop' },
+  { label: '장애인표준사업장', key: 'standard_workshop' },
   { label: '중증장애인',     key: 'severe_disabled' },
   { label: '기술개발제품',   key: 'tech_development' },
   { label: '시범구매',       key: 'pilot_purchase' },
@@ -547,280 +615,10 @@ function ChartTooltip({ active, payload, label }) {
   );
 }
 
-// ── 지표 시뮬레이션 ───────────────────────────────────────────────────────────
-
-const CERT_OPTIONS = [
-  { key: 'sme',              col: '중소기업제품(연동)',         label: '중소기업'   },
-  { key: 'women',            col: '여성기업제품(연동)',         label: '여성기업'   },
-  { key: 'startup',          col: '창업기업제품',               label: '창업기업'   },
-  { key: 'disabled',         col: '장애인구매(연동)',           label: '장애인기업' },
-  { key: 'standard_workshop',col: '장애인표준사업장여부',       label: '표준사업장' },
-  { key: 'severe_disabled',  col: '중증장애인제품',             label: '중증장애인' },
-  { key: 'social',           col: '사회적기업',                 label: '사회적기업' },
-  { key: 'cooperative',      col: '사회적협동조합제품여부',     label: '협동조합'   },
-  { key: 'green',            col: '친환경제품',                 label: '친환경제품' },
-  { key: 'jawal',            col: '자활용사촌제품',             label: '자활용사촌' },
-  { key: 'pilot',            col: '시범구매여부',               label: '시범구매'   },
-  { key: 'tech',             col: '기술개발제품대상품목조회',   label: '기술개발'   },
-  { key: 'nep',              col: '신제품인증(NEP)여부',        label: 'NEP'        },
-];
-
-function createVirtualRow(amount, purchaseType, checkedKeys) {
-  const row = {
-    '구매구분':               purchaseType,
-    '물품금액':               amount,
-    '채주지급금액':           0,
-    '집행구분':               'Y',
-    '제외여부':               0,
-    '혁신제품여부':           '',
-    '신제품인증(NEP) 대상품목': checkedKeys.includes('nep') ? 'Y' : '',
-  };
-  CERT_OPTIONS.forEach(({ key, col }) => {
-    row[col] = checkedKeys.includes(key) ? 'Y' : '';
-  });
-  return row;
-}
-
-function Simulation({ results, rows, finalScore }) {
-  const [amount, setAmount]           = useState('');
-  const [purchaseType, setPurchaseType] = useState('물품');
-  const [checked, setChecked]         = useState(new Set());
-  const [simResult, setSimResult]     = useState(null);
-
-  const fmtInput  = v => v.replace(/[^0-9]/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  const parseAmt  = v => Number(v.replace(/,/g, '')) || 0;
-
-  const toggleCert = key => setChecked(prev => {
-    const next = new Set(prev);
-    next.has(key) ? next.delete(key) : next.add(key);
-    return next;
-  });
-
-  const handleAnalyze = () => {
-    const amt = parseAmt(amount);
-    if (!amt) return;
-    const virtualRow   = createVirtualRow(amt, purchaseType, [...checked]);
-    const effectiveRows = rows.filter(r => (r['제외여부'] ?? 0) === 0);
-    const sim          = calcEngine([...effectiveRows, virtualRow], SIM_OVERRIDES);
-    setSimResult(sim);
-  };
-
-  // 현재 results를 map으로 변환
-  const resultMap = Object.fromEntries(results.map(r => [r.key, r]));
-
-  // 변화있는 지표 계산
-  const changes = simResult
-    ? simResult.results
-        .map(s => {
-          const cur = resultMap[s.key];
-          if (!cur) return null;
-          const rateDiff    = s.achievementRate - cur.achievementRate;
-          const targetDiff  = s.targetAmount    - cur.targetAmount;
-          const actualDiff  = s.actual          - cur.actual;
-          const newlyAchieved = !cur.achieved && s.achieved;
-          const hasChange = Math.abs(rateDiff) >= 0.0001 || Math.abs(targetDiff) > 0 || Math.abs(actualDiff) > 0 || newlyAchieved;
-          if (!hasChange) return null;
-          return {
-            key: s.key, label: s.label,
-            curTarget: cur.targetAmount, simTarget: s.targetAmount, targetDiff,
-            curActual: cur.actual,       simActual: s.actual,       actualDiff,
-            curRate: cur.achievementRate, simRate: s.achievementRate, rateDiff,
-            newlyAchieved, curAchieved: cur.achieved, simAchieved: s.achieved,
-          };
-        })
-        .filter(Boolean)
-        .sort((a, b) => (b.newlyAchieved ? 1 : 0) - (a.newlyAchieved ? 1 : 0) || b.rateDiff - a.rateDiff)
-    : [];
-
-  const scoreDiff = simResult ? simResult.finalScore - finalScore : 0;
-
-  return (
-    <div style={{ ...S.card, height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={S.cardTitle}>🔮 지표 시뮬레이션</div>
-
-      <div style={{ display: 'flex', gap: 16, flex: 1 }}>
-
-        {/* 왼쪽: 입력 */}
-        <div style={SIM.inputPane}>
-          <div style={SIM.fieldGroup}>
-            <div style={SIM.label}>구매예정금액</div>
-            <div style={SIM.amountWrap}>
-              <input
-                value={amount}
-                onChange={e => setAmount(fmtInput(e.target.value))}
-                placeholder="예: 10,000,000"
-                style={SIM.amountInput}
-              />
-              <span style={SIM.unit}>원</span>
-            </div>
-          </div>
-
-          <div style={SIM.fieldGroup}>
-            <div style={SIM.label}>구매구분</div>
-            <div style={{ display: 'flex', gap: 14 }}>
-              {['물품', '용역', '공사'].map(t => (
-                <label key={t} style={SIM.radioLabel}>
-                  <input type="radio" value={t} checked={purchaseType === t}
-                    onChange={() => setPurchaseType(t)} style={{ marginRight: 5 }} />
-                  {t}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div style={SIM.fieldGroup}>
-            <div style={SIM.label}>인증종류 (중복선택)</div>
-            <div style={SIM.certGrid}>
-              {CERT_OPTIONS.map(({ key, label }) => (
-                <label key={key} style={SIM.certItem}>
-                  <input type="checkbox" checked={checked.has(key)}
-                    onChange={() => toggleCert(key)} style={{ marginRight: 5 }} />
-                  {label}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <button
-            style={{ ...SIM.analyzeBtn, opacity: parseAmt(amount) > 0 ? 1 : 0.5 }}
-            onClick={handleAnalyze}
-            disabled={parseAmt(amount) === 0}
-          >
-            분석하기
-          </button>
-        </div>
-
-        {/* 오른쪽: 결과 */}
-        <div style={SIM.resultPane}>
-          {!simResult ? (
-            <div style={SIM.placeholder}>
-              <div style={{ fontSize: 32, marginBottom: 10 }}>📊</div>
-              <div style={{ fontSize: 14, color: COLOR.subtext }}>금액과 구매유형을 입력 후<br />분석하기를 눌러주세요.</div>
-            </div>
-          ) : (
-            <>
-              {/* 점수 비교 */}
-              <div style={SIM.scoreBox}>
-                <div style={SIM.scoreRow}>
-                  <span style={SIM.scoreLabel}>현재 점수</span>
-                  <span style={{ fontSize: 20, fontWeight: 800, color: COLOR.text }}>{finalScore.toFixed(2)}<span style={{ fontSize: 13, color: COLOR.subtext, fontWeight: 400 }}>점</span></span>
-                </div>
-                <div style={{ fontSize: 18, color: COLOR.subtext, margin: '0 8px' }}>→</div>
-                <div style={SIM.scoreRow}>
-                  <span style={SIM.scoreLabel}>예상 점수</span>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                    <span style={{ fontSize: 20, fontWeight: 800, color: scoreDiff > 0 ? COLOR.success : COLOR.text }}>
-                      {simResult.finalScore.toFixed(2)}<span style={{ fontSize: 13, fontWeight: 400, color: COLOR.subtext }}>점</span>
-                    </span>
-                    {scoreDiff > 0 && (
-                      <span style={{ fontSize: 13, fontWeight: 700, color: COLOR.success }}>+{scoreDiff.toFixed(4)}</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* 선택한 인증 지표 변동 분석 */}
-              <div style={{ fontSize: 12, fontWeight: 700, color: COLOR.subtext, marginTop: 12, marginBottom: 4 }}>
-                선택한 인증 지표 변동 분석
-              </div>
-              {changes.length === 0 ? (
-                <div style={{ fontSize: 13, color: COLOR.subtext, textAlign: 'center', padding: '16px 0' }}>
-                  이 조건으로는 지표 변화가 없습니다.
-                </div>
-              ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginTop: 4 }}>
-                  <thead>
-                    <tr style={{ background: COLOR.bg }}>
-                      <th style={SIM.th}>지표</th>
-                      <th style={{ ...SIM.th, textAlign: 'right' }}>목표액</th>
-                      <th style={{ ...SIM.th, textAlign: 'right' }}>지출액</th>
-                      <th style={{ ...SIM.th, textAlign: 'right' }}>달성률</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {changes.map((c, i) => {
-                      const tDiffColor = c.targetDiff > 0 ? COLOR.danger : c.targetDiff < 0 ? COLOR.primary : COLOR.subtext;
-                      const aDiffColor = c.actualDiff > 0 ? COLOR.success : COLOR.danger;
-                      const rDiffColor = c.rateDiff > 0 ? COLOR.success : COLOR.danger;
-                      return (
-                        <tr key={c.key} style={{ background: c.newlyAchieved ? '#F0FAF8' : i % 2 === 0 ? '#fff' : COLOR.bg }}>
-                          {/* 지표명 */}
-                          <td style={{ ...SIM.td, fontWeight: 600 }}>{c.label}</td>
-
-                          {/* 목표액 */}
-                          <td style={{ ...SIM.td, textAlign: 'right' }}>
-                            <div style={{ fontWeight: 700, color: COLOR.text }}>{KRW(c.simTarget)}</div>
-                            {Math.abs(c.targetDiff) > 0 && (
-                              <div style={{ fontSize: 10, color: tDiffColor, marginTop: 1 }}>
-                                {c.targetDiff > 0 ? '+' : ''}{KRW(c.targetDiff)}
-                              </div>
-                            )}
-                          </td>
-
-                          {/* 지출액 */}
-                          <td style={{ ...SIM.td, textAlign: 'right' }}>
-                            <div style={{ fontWeight: 700, color: COLOR.text }}>{KRW(c.simActual)}</div>
-                            {Math.abs(c.actualDiff) > 0 && (
-                              <div style={{ fontSize: 10, color: aDiffColor, marginTop: 1 }}>
-                                {c.actualDiff > 0 ? '+' : ''}{KRW(c.actualDiff)}
-                              </div>
-                            )}
-                          </td>
-
-                          {/* 달성률 */}
-                          <td style={{ ...SIM.td, textAlign: 'right' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5 }}>
-                              <span style={{ fontWeight: 700, color: c.simAchieved ? COLOR.success : COLOR.danger }}>
-                                {PCT(c.simRate)}
-                              </span>
-                              {c.newlyAchieved && (
-                                <span style={{ fontSize: 10, fontWeight: 700, background: COLOR.success, color: '#fff', padding: '1px 6px', borderRadius: 99 }}>✓ 달성</span>
-                              )}
-                            </div>
-                            {Math.abs(c.rateDiff) >= 0.0001 && (
-                              <div style={{ fontSize: 10, color: rDiffColor, marginTop: 1, textAlign: 'right' }}>
-                                {c.rateDiff > 0 ? '+' : ''}{(c.rateDiff * 100).toFixed(1)}%p
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </>
-          )}
-        </div>
-
-      </div>
-    </div>
-  );
-}
-
-const SIM = {
-  inputPane:   { flex: '0 0 42%', display: 'flex', flexDirection: 'column', gap: 16, borderRight: `1px solid ${COLOR.border}`, paddingRight: 18 },
-  resultPane:  { flex: 1, display: 'flex', flexDirection: 'column' },
-  fieldGroup:  { display: 'flex', flexDirection: 'column', gap: 7 },
-  label:       { fontSize: 12, fontWeight: 600, color: COLOR.subtext },
-  amountWrap:  { display: 'flex', alignItems: 'center', gap: 8 },
-  amountInput: { flex: 1, padding: '9px 12px', border: `1px solid ${COLOR.border}`, borderRadius: 10, fontSize: 14, outline: 'none', background: COLOR.bg, color: COLOR.text },
-  unit:        { fontSize: 13, color: COLOR.subtext, flexShrink: 0 },
-  radioLabel:  { fontSize: 13, color: COLOR.text, display: 'flex', alignItems: 'center', cursor: 'pointer' },
-  certGrid:    { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '7px 4px' },
-  certItem:    { fontSize: 12, color: COLOR.text, display: 'flex', alignItems: 'center', cursor: 'pointer', whiteSpace: 'nowrap' },
-  analyzeBtn:  { padding: '10px', background: COLOR.primary, color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', letterSpacing: '-0.2px' },
-  placeholder: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' },
-  scoreBox:    { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: COLOR.bg, borderRadius: 12, padding: '14px 16px', marginBottom: 4 },
-  scoreRow:    { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 },
-  scoreLabel:  { fontSize: 11, color: COLOR.subtext, fontWeight: 500 },
-  th:          { padding: '8px 10px', fontWeight: 600, color: COLOR.subtext, borderBottom: `1px solid ${COLOR.border}`, textAlign: 'left', background: COLOR.bg },
-  td:          { padding: '8px 10px', borderBottom: `1px solid ${COLOR.border}`, color: COLOR.text },
-};
-
 // ── 메인 ─────────────────────────────────────────────────────────────────────
-export default function Dashboard({ results, totalScore, finalScore, stats, rows = [], maxScore }) {
-  const [showDetail, setShowDetail] = useState(false);
+export default function Dashboard({ results, totalScore, finalScore, stats, rows = [], maxScore, isYeonsoo = false }) {
+  const [showDetail, setShowDetail]         = useState(false);
+  const [showTargetModal, setShowTargetModal] = useState(false);
   const achieved    = results.filter(r => r.achieved);
   const notAchieved = results.filter(r => !r.achieved);
 
@@ -841,7 +639,8 @@ export default function Dashboard({ results, totalScore, finalScore, stats, rows
   return (
     <div style={{ fontFamily: "'Pretendard', 'Apple SD Gothic Neo', sans-serif" }}>
 
-      {showDetail && <DetailModal rows={rows} onClose={() => setShowDetail(false)} />}
+      {showDetail      && <DetailModal  rows={rows}    onClose={() => setShowDetail(false)} />}
+      {showTargetModal && <TargetModal  results={results} onClose={() => setShowTargetModal(false)} />}
 
       {/* ── KPI 카드 5개 ── */}
       <div style={S.kpiRow}>
@@ -857,6 +656,7 @@ export default function Dashboard({ results, totalScore, finalScore, stats, rows
           title="공공구매 목표액"
           value={KRW(stats?.totalTargetSum)}
           sub={`목표 합산`}
+          onClick={() => setShowTargetModal(true)}
         />
         <KpiCard
           icon="📦"
@@ -876,21 +676,20 @@ export default function Dashboard({ results, totalScore, finalScore, stats, rows
           title="공공구매 점수"
           value={finalScore.toFixed(2)}
           unit={`/ ${maxScore?.toFixed(2) ?? '4.00'}점`}
-          sub={finalScore >= 3 ? '우수' : finalScore >= 2 ? '보통' : '미흡'}
           valueColor={scoreColor}
         />
       </div>
 
-      {/* ── 3열 레이아웃 ── */}
-      <div style={S.threeCol}>
+      {/* ── 중단: 바 차트 + 목표대비 상세현황 ── */}
+      <div style={{ display: 'flex', gap: 20, alignItems: 'stretch', marginBottom: 20 }}>
 
-        {/* 왼쪽: 바 차트 */}
+        {/* 왼쪽 50%: 바 차트 */}
         <div style={{ ...S.card, flex: 1, display: 'flex', flexDirection: 'column' }}>
           <div style={S.cardTitle}>유형별 목표 대비 달성률</div>
           <div style={{ display: 'flex', gap: 16, fontSize: 12, color: COLOR.subtext, marginBottom: 12 }}>
             <span><span style={{ ...S.dot, background: COLOR.success }} />달성</span>
-            <span><span style={{ ...S.dot, background: COLOR.gray }} />미달성</span>
-            <span style={{ color: COLOR.danger }}>— 100% 목표선</span>
+            <span><span style={{ ...S.dot, background: COLOR.danger }} />미달성</span>
+            <span style={{ color: COLOR.subtext }}>— 100% 목표선</span>
           </div>
           <div style={{ flex: 1 }}>
             <ResponsiveContainer width="100%" height={520}>
@@ -914,10 +713,10 @@ export default function Dashboard({ results, totalScore, finalScore, stats, rows
                   tickLine={false}
                 />
                 <Tooltip content={<ChartTooltip />} cursor={{ fill: '#F9FAFB' }} />
-                <ReferenceLine x={100} stroke={COLOR.danger} strokeDasharray="5 3" strokeWidth={1.5} />
+                <ReferenceLine x={100} stroke={COLOR.subtext} strokeDasharray="5 3" strokeWidth={1.5} />
                 <Bar dataKey="rate" radius={[0, 4, 4, 0]} maxBarSize={16}>
                   {chartData.map(d => (
-                    <Cell key={d.key} fill={d.achieved ? COLOR.success : COLOR.gray} />
+                    <Cell key={d.key} fill={d.achieved ? COLOR.success : COLOR.danger} />
                   ))}
                 </Bar>
               </BarChart>
@@ -925,26 +724,26 @@ export default function Dashboard({ results, totalScore, finalScore, stats, rows
           </div>
         </div>
 
-        {/* 가운데: 부족금액 Top 5 */}
+        {/* 오른쪽 50%: 목표대비 상세현황 */}
         <div style={{ flex: 1 }}>
-          <ShortfallTop5 results={results} />
-        </div>
-
-        {/* 오른쪽: 달성/미달성 현황 */}
-        <div style={{ flex: 1 }}>
-          <AchievementStatus results={results} />
+          <DetailTable results={results} />
         </div>
 
       </div>
 
-      {/* ── 목표대비 상세현황 + 시뮬레이션 ── */}
-      <div style={{ display: 'flex', gap: 24, marginTop: 14, alignItems: 'stretch' }}>
-        <div style={{ width: '50%' }}>
-          <DetailTable results={results} />
+      {/* ── 하단: 지표별 부족금액 Top5 + 달성/미달성 현황 ── */}
+      <div style={{ display: 'flex', gap: 20, alignItems: 'stretch', marginBottom: 20 }}>
+
+        {/* 왼쪽 50%: 부족금액 Top 5 */}
+        <div style={{ flex: 1 }}>
+          <ShortfallTop5 results={results} />
         </div>
-        <div style={{ width: '50%' }}>
-          <Simulation results={results} rows={rows} finalScore={finalScore} />
+
+        {/* 오른쪽 50%: 달성/미달성 현황 */}
+        <div style={{ flex: 1 }}>
+          <AchievementStatus results={results} />
         </div>
+
       </div>
 
     </div>
@@ -989,12 +788,6 @@ const S = {
   kpiValue:    { fontSize: 22, fontWeight: 800, lineHeight: 1, color: COLOR.text, letterSpacing: '-0.5px' },
   kpiUnit:     { fontSize: 13, color: COLOR.subtext },
   kpiSub:      { fontSize: 12, color: COLOR.subtext, marginTop: 6 },
-  threeCol: {
-    display: 'flex',
-    gap: 14,
-    alignItems: 'stretch',
-    marginBottom: 14,
-  },
   table: {
     width: '100%',
     borderCollapse: 'collapse',

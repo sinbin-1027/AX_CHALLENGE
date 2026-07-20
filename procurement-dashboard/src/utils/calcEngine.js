@@ -88,10 +88,13 @@ export function calcEngine(rows, overrides = {}) {
   const actuals     = aggregateActuals(rows);
 
   // 직군별 지표 배점 override 적용 (e.g. startup.points: 1.0)
-  const effectiveTargets = TARGETS.map(t => {
-    const over = overrides.targetOverrides?.[t.key];
-    return over ? { ...t, ...over } : t;
-  });
+  const excludeSet = new Set(overrides.excludeTargets ?? []);
+  const effectiveTargets = TARGETS
+    .filter(t => !excludeSet.has(t.key))
+    .map(t => {
+      const over = overrides.targetOverrides?.[t.key];
+      return over ? { ...t, ...over } : t;
+    });
 
   const results = effectiveTargets.map(target => {
     const { targetAmount, denominator } = calcTargetAmount(

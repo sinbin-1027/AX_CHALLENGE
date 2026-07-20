@@ -151,12 +151,14 @@ function AppLayout() {
     const calcRows = rawRows.filter(r => r['제외여부'] !== 1).concat(manualRows);
 
     const groupConfig = DEPT_GROUP_CONFIGS[dept.group];
+    const isYeonsooInner = dept?.group === '연수';
     const overrides = {
       headcount:       dept.headcount,
       fixedTargets:    dept.targets,
       scoreWeight:     groupConfig.scoreWeight,
       totalPoints:     groupConfig.totalPoints,
       targetOverrides: groupConfig.overrides ?? {},
+      excludeTargets:  isYeonsooInner ? [] : ['innovative_product'],
     };
 
     let result = null;
@@ -170,6 +172,7 @@ function AppLayout() {
 
   const selectedDept        = DEPARTMENTS.find(d => d.id === deptId);
   const selectedGroupConfig = DEPT_GROUP_CONFIGS[selectedDept?.group];
+  const isYeonsoo           = selectedDept?.group === '연수';
 
   return (
     <div style={S.root}>
@@ -208,6 +211,7 @@ function AppLayout() {
                   stats={result.stats}
                   rows={activeRows}
                   maxScore={selectedGroupConfig?.scoreWeight}
+                  isYeonsoo={isYeonsoo}
                 />
               ) : <ComingSoon title="데이터 없음" />
             } />
@@ -219,10 +223,10 @@ function AppLayout() {
             {/* 공공구매 관리 */}
             <Route path="/procurement/indicators" element={
               result
-                ? <IndicatorStatusPage stats={result.stats} finalScore={result.finalScore} results={result.results} />
+                ? <IndicatorStatusPage stats={result.stats} finalScore={result.finalScore} results={result.results} rows={activeRows} isYeonsoo={isYeonsoo} />
                 : <ComingSoon title="지표 현황" />
             } />
-            <Route path="/procurement/details"  element={<IndicatorDetailPage rows={activeRows} results={result?.results ?? []} />} />
+            <Route path="/procurement/details"  element={<IndicatorDetailPage rows={activeRows} results={result?.results ?? []} isYeonsoo={isYeonsoo} />} />
             <Route path="/procurement/register" element={
               <DetailsPage
                 rows={activeRows}
