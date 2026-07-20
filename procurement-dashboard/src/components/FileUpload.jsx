@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 
 const SHEET_NAME = 'RAW';
+const EXCLUDED_BUDGET_KEYWORDS = ['업무추진비', '부운영비', '기타운영비', '특근매식비'];
 
 export default function FileUpload({ onDataLoad }) {
   const [dragging, setDragging] = useState(false);
@@ -33,7 +34,13 @@ export default function FileUpload({ onDataLoad }) {
             throw new Error(`'${SHEET_NAME}' 시트를 찾을 수 없습니다. (파일 내 시트: ${available})`);
           }
           const parsed = XLSX.utils.sheet_to_json(ws, { defval: '' });
-          resolve(parsed.map(r => ({ ...r, '집행구분': 'Y' })));
+          const withFlag = parsed.map(r => ({ ...r, '집행구분': 'Y' }));
+          const filtered = withFlag.filter(row => {
+            const 예산명 = String(row['예산명'] ?? '');
+            return !EXCLUDED_BUDGET_KEYWORDS.some(k => 예산명.includes(k));
+          });
+          filtered._excluded = withFlag.length - filtered.length;
+          resolve(filtered);
         } catch (err) { reject(err); }
       };
       reader.onerror = () => reject(new Error('파일을 읽는 중 오류가 발생했습니다.'));
@@ -42,7 +49,9 @@ export default function FileUpload({ onDataLoad }) {
 
     if (!rows) return;
 
-    setFileInfo({ name: file.name, count: rows.length });
+    const excluded = rows._excluded ?? 0;
+    const total    = rows.length + excluded;
+    setFileInfo({ name: file.name, total, excluded, count: rows.length });
     setStatus('done');
     onDataLoad(rows);
   }, [onDataLoad]);
@@ -76,7 +85,11 @@ export default function FileUpload({ onDataLoad }) {
             <span style={styles.iconDone}>✓</span>
             <div>
               <div style={styles.fileName}>{fileInfo.name}</div>
-              <div style={styles.rowCount}>총 {fileInfo.count.toLocaleString('ko-KR')}개 행 로드 완료</div>
+              <div style={styles.rowCount}>
+                {fileInfo.excluded > 0
+                  ? `총 ${fileInfo.total.toLocaleString('ko-KR')}개 중 ${fileInfo.excluded.toLocaleString('ko-KR')}개 제외 → ${fileInfo.count.toLocaleString('ko-KR')}개 로드 완료`
+                  : `총 ${fileInfo.count.toLocaleString('ko-KR')}개 행 로드 완료`}
+              </div>
             </div>
             <span style={styles.reupload}>다시 업로드</span>
           </div>
