@@ -1,8 +1,6 @@
 import { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
 
-const API_BASE = process.env.REACT_APP_API_URL;
-
 // ── 상수 ─────────────────────────────────────────────────────────────────────
 
 const CERT_OPTIONS = [
@@ -22,7 +20,7 @@ const CERT_OPTIONS = [
   { value: 'innovative_product', label: '혁신제품'   },
 ];
 
-// insufficientKey → 인증 레이블 (여러 키가 같은 인증에 매핑될 수 있음)
+// insufficientKey → 인증 레이블
 const KEY_TO_LABEL = {
   sme:                '중소기업',
   women_goods:        '여성기업',
@@ -73,11 +71,11 @@ function CertBadge({ label }) {
 }
 
 // ── 업로드 섹션 ───────────────────────────────────────────────────────────────
-function UploadSection() {
-  const [certType, setCertType]     = useState('women');
-  const [loading, setLoading]       = useState(false);
-  const [result, setResult]         = useState(null);
-  const [error, setError]           = useState('');
+function UploadSection({ onVendorUpload }) {
+  const [certType, setCertType] = useState('women');
+  const [loading, setLoading]   = useState(false);
+  const [result, setResult]     = useState(null);
+  const [error, setError]       = useState('');
   const fileRef = useRef(null);
 
   const handleFile = async (e) => {
@@ -92,16 +90,9 @@ function UploadSection() {
       const wb   = XLSX.read(buf, { type: 'array' });
       const ws   = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
-
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${API_BASE}/api/vendors/upload`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ certType, rows }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-      setResult(data);
+      const certLabel = CERT_OPTIONS.find(o => o.value === certType)?.label ?? certType;
+      onVendorUpload(certType, certLabel, rows);
+      setResult({ total: rows.length, certLabel });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -109,8 +100,6 @@ function UploadSection() {
       e.target.value = '';
     }
   };
-
-  const certLabel = CERT_OPTIONS.find(o => o.value === certType)?.label ?? '';
 
   return (
     <div style={S.card}>
@@ -136,15 +125,14 @@ function UploadSection() {
             onClick={() => fileRef.current?.click()}
             disabled={loading}
           >
-            {loading ? '업로드 중...' : '파일 선택'}
+            {loading ? '처리 중...' : '파일 선택'}
           </button>
           <input ref={fileRef} type="file" accept=".xlsx" style={{ display: 'none' }} onChange={handleFile} />
         </div>
 
         {result && (
           <div style={S.uploadSuccess}>
-            ✓ <b>{certLabel}</b> 인증 업체 {result.total}개 등록 완료
-            <span style={S.uploadSub}>(신규 {result.inserted} · 업데이트 {result.updated})</span>
+            ✓ <b>{result.certLabel}</b> 인증 업체 {result.total}개 로드 완료
           </div>
         )}
       </div>
@@ -155,37 +143,24 @@ function UploadSection() {
 }
 
 // ── 추천 섹션 ─────────────────────────────────────────────────────────────────
-function RecommendSection({ results }) {
-  const [vendors, setVendors]     = useState([]);
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState('');
-  const [searched, setSearched]   = useState(false);
+function RecommendSection({ results, vendors }) {
+  const [recommended, setRecommended] = useState([]);
+  const [searched, setSearched]       = useState(false);
 
   const insufficientItems = results ? results.filter(r => !r.achieved) : [];
   const insufficientKeys  = insufficientItems.map(r => r.key);
 
-  const handleRecommend = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const token  = localStorage.getItem('token');
-      const params = insufficientKeys.join(',');
-      const res = await fetch(
-        `${API_BASE}/api/vendors/recommend?insufficientKeys=${encodeURIComponent(params)}`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-      setVendors(data);
-      setSearched(true);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+  const handleRecommend = () => {
+    const certLabels = new Set(
+      insufficientKeys.map(k => KEY_TO_LABEL[k]).filter(Boolean)
+    );
+    const filtered = vendors.filter(v =>
+      v.보유인증.some(label => certLabels.has(label))
+    );
+    setRecommended(filtered);
+    setSearched(true);
   };
 
-  // 업체별 해결 가능 지표 수 계산
   const resolveCount = (vendor) =>
     insufficientKeys.filter(key => {
       const label = KEY_TO_LABEL[key];
@@ -196,7 +171,6 @@ function RecommendSection({ results }) {
     <div style={S.card}>
       <div style={S.cardTitle}>🏢 추천 업체 조회</div>
 
-      {/* 부족한 지표 표시 */}
       <div style={S.insufficientWrap}>
         <span style={S.insufficientLabel}>현재 미달성 지표</span>
         {insufficientItems.length === 0 ? (
@@ -211,34 +185,29 @@ function RecommendSection({ results }) {
       </div>
 
       <button
-        style={{ ...S.recommendBtn, opacity: loading ? 0.6 : 1 }}
+        style={{ ...S.recommendBtn, opacity: insufficientItems.length === 0 ? 0.5 : 1 }}
         onClick={handleRecommend}
-        disabled={loading || insufficientItems.length === 0}
+        disabled={insufficientItems.length === 0}
       >
-        {loading ? '조회 중...' : '추천 업체 조회'}
+        추천 업체 조회
       </button>
 
-      {error && <div style={S.error}>{error}</div>}
-
-      {/* 결과 카드 */}
-      {searched && vendors.length === 0 && (
-        <div style={S.empty}>등록된 업체 데이터가 없습니다. 먼저 업체 리스트를 업로드해주세요.</div>
+      {searched && recommended.length === 0 && (
+        <div style={S.empty}>해당 인증을 보유한 업체가 없습니다. 먼저 업체 리스트를 업로드해주세요.</div>
       )}
 
       <div style={S.vendorGrid}>
-        {vendors.map((v, i) => {
+        {recommended.map((v, i) => {
           const cnt = resolveCount(v);
           return (
-            <div key={v.id ?? i} style={S.vendorCard}>
+            <div key={v.사업자번호 ?? i} style={S.vendorCard}>
               <div style={S.vendorHeader}>
                 <div>
                   <div style={S.vendorName}>{v.업체명}</div>
                   <div style={S.vendorBiz}>{v.사업자번호}</div>
                 </div>
                 {cnt > 0 && (
-                  <div style={S.resolveChip}>
-                    {cnt}개 지표 해결 가능
-                  </div>
+                  <div style={S.resolveChip}>{cnt}개 지표 해결 가능</div>
                 )}
               </div>
 
@@ -263,12 +232,12 @@ function RecommendSection({ results }) {
 }
 
 // ── 메인 ─────────────────────────────────────────────────────────────────────
-export default function VendorRecommend({ results }) {
+export default function VendorRecommend({ results, vendors, onVendorUpload }) {
   return (
     <div>
-      <UploadSection />
+      <UploadSection onVendorUpload={onVendorUpload} />
       <div style={{ marginTop: 16 }}>
-        <RecommendSection results={results} />
+        <RecommendSection results={results} vendors={vendors} />
       </div>
     </div>
   );
@@ -285,7 +254,6 @@ const S = {
   select:           { padding: '9px 12px', border: '1px solid #F2F4F6', borderRadius: 10, fontSize: 14, outline: 'none', background: '#F9FAFB', minWidth: 140, color: '#191F28' },
   uploadBtn:        { padding: '9px 20px', background: '#3182F6', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer' },
   uploadSuccess:    { display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#00B493', fontWeight: 500, padding: '10px 14px', background: '#F0FAF8', border: '1px solid #B3E8DF', borderRadius: 10 },
-  uploadSub:        { fontSize: 12, color: '#8B95A1', fontWeight: 400 },
   error:            { marginTop: 10, padding: '10px 14px', background: '#FFF0F1', color: '#F04452', borderRadius: 10, fontSize: 13 },
   insufficientWrap: { display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16, flexWrap: 'wrap' },
   insufficientLabel:{ fontSize: 13, fontWeight: 600, color: '#8B95A1', whiteSpace: 'nowrap', paddingTop: 3 },

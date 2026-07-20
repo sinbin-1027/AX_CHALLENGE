@@ -1,23 +1,21 @@
-import { useState, useEffect, useCallback } from 'react';
-
-const API_BASE = process.env.REACT_APP_API_URL;
+import { useState, useMemo } from 'react';
 
 const CERT_FILTERS = [
-  { value: '',                 label: '전체'     },
-  { value: 'sme',              label: '중소기업'  },
-  { value: 'women',            label: '여성기업'  },
-  { value: 'startup',          label: '창업기업'  },
-  { value: 'disabled',         label: '장애인기업' },
-  { value: 'severe_disabled',  label: '중증장애인' },
-  { value: 'standard_workshop',label: '표준사업장' },
-  { value: 'social',           label: '사회적기업' },
-  { value: 'cooperative',      label: '협동조합'  },
-  { value: 'green',            label: '녹색제품'  },
-  { value: 'jawal',            label: '자활용사촌' },
-  { value: 'pilot',            label: '시범구매'  },
-  { value: 'tech',             label: '기술개발'  },
-  { value: 'nep',              label: 'NEP'       },
-  { value: 'innovative_product',label: '혁신제품' },
+  { value: '',                  label: '전체'     },
+  { value: 'sme',               label: '중소기업'  },
+  { value: 'women',             label: '여성기업'  },
+  { value: 'startup',           label: '창업기업'  },
+  { value: 'disabled',          label: '장애인기업' },
+  { value: 'severe_disabled',   label: '중증장애인' },
+  { value: 'standard_workshop', label: '표준사업장' },
+  { value: 'social',            label: '사회적기업' },
+  { value: 'cooperative',       label: '협동조합'  },
+  { value: 'green',             label: '녹색제품'  },
+  { value: 'jawal',             label: '자활용사촌' },
+  { value: 'pilot',             label: '시범구매'  },
+  { value: 'tech',              label: '기술개발'  },
+  { value: 'nep',               label: 'NEP'       },
+  { value: 'innovative_product',label: '혁신제품'  },
 ];
 
 const CERT_COLOR = {
@@ -104,46 +102,32 @@ function DetailModal({ vendor, onClose }) {
 }
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
-export default function VendorList() {
+export default function VendorList({ vendors = [] }) {
   const [search, setSearch]         = useState('');
   const [certFilter, setCertFilter] = useState('');
   const [page, setPage]             = useState(1);
-  const [vendors, setVendors]       = useState([]);
-  const [total, setTotal]           = useState(0);
-  const [loading, setLoading]       = useState(false);
   const [selected, setSelected]     = useState(null);
 
   const LIMIT = 20;
 
-  const fetchList = useCallback(async () => {
-    setLoading(true);
-    try {
-      const token  = localStorage.getItem('token');
-      const params = new URLSearchParams({
-        ...(search     ? { search }     : {}),
-        ...(certFilter ? { certFilter } : {}),
-        page:  String(page),
-        limit: String(LIMIT),
-      });
-      const res  = await fetch(`${API_BASE}/api/vendors/list?${params}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      setVendors(data.vendors ?? []);
-      setTotal(data.total ?? 0);
-    } catch {
-      setVendors([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [search, certFilter, page]);
+  const filtered = useMemo(() => {
+    const q         = search.trim().toLowerCase();
+    const certLabel = CERT_FILTERS.find(f => f.value === certFilter)?.label ?? '';
+    return vendors.filter(v => {
+      const matchSearch = !q ||
+        v.업체명.toLowerCase().includes(q) ||
+        v.사업자번호.includes(q);
+      const matchCert = !certFilter ||
+        v.보유인증.includes(certLabel);
+      return matchSearch && matchCert;
+    });
+  }, [vendors, search, certFilter]);
 
-  useEffect(() => { fetchList(); }, [fetchList]);
+  const totalPages  = Math.ceil(filtered.length / LIMIT);
+  const paginated   = filtered.slice((page - 1) * LIMIT, page * LIMIT);
 
-  const handleSearch = (e) => { e.preventDefault(); setPage(1); fetchList(); };
   const handleFilter = (val) => { setCertFilter(val); setPage(1); };
-
-  const totalPages = Math.ceil(total / LIMIT);
+  const handleSearch = (e)  => { e.preventDefault(); setPage(1); };
 
   return (
     <div>
@@ -179,7 +163,7 @@ export default function VendorList() {
         <div style={S.tableHeader}>
           <span style={S.tableTitle}>
             업체 목록
-            <span style={S.totalBadge}>{total.toLocaleString()}개</span>
+            <span style={S.totalBadge}>{filtered.length.toLocaleString()}개</span>
           </span>
         </div>
 
@@ -196,23 +180,18 @@ export default function VendorList() {
               </tr>
             </thead>
             <tbody>
-              {loading && (
+              {paginated.length === 0 && (
                 <tr>
                   <td colSpan={6} style={{ ...S.td, textAlign: 'center', color: '#94a3b8', padding: '40px 0' }}>
-                    불러오는 중...
+                    {vendors.length === 0
+                      ? '업체 데이터가 없습니다. 추천 업체 페이지에서 엑셀을 업로드해주세요.'
+                      : '검색 결과가 없습니다.'}
                   </td>
                 </tr>
               )}
-              {!loading && vendors.length === 0 && (
-                <tr>
-                  <td colSpan={6} style={{ ...S.td, textAlign: 'center', color: '#94a3b8', padding: '40px 0' }}>
-                    등록된 업체가 없습니다.
-                  </td>
-                </tr>
-              )}
-              {!loading && vendors.map((v, i) => (
+              {paginated.map((v, i) => (
                 <tr
-                  key={v.id ?? i}
+                  key={v.사업자번호 ?? i}
                   style={{ background: i % 2 === 0 ? '#fff' : '#fafafa', cursor: 'pointer' }}
                   onClick={() => setSelected(v)}
                   onMouseEnter={e => e.currentTarget.style.background = '#eff6ff'}
