@@ -161,10 +161,11 @@ function EditPanel({ mode, draft, selectedRow, onChange, onToggleFlag, onConfirm
 }
 
 // ── 테이블 행 ────────────────────────────────────────────────────────────────
-function TableRow({ row, index, excluded, isSelected, onRowClick, onToggleExclude, onDeleteManual, isNew }) {
-  const isManual = row.__source === 'manual';
-  const isRaw    = row.__source === 'raw';
-  const isN      = row['집행구분'] === 'N';
+function TableRow({ row, index, excluded, isSelected, onRowClick, onToggleExclude, isNew }) {
+  const isManual  = row.__source === 'manual';
+  const isRaw     = row.__source === 'raw';
+  const isN       = row['집행구분'] === 'N';
+  const excludeKey = isRaw ? row.__결의번호 : row.__id;
 
   const rowBg = isSelected      ? '#EFF6FF'
               : excluded        ? '#fff2f0'
@@ -179,14 +180,12 @@ function TableRow({ row, index, excluded, isSelected, onRowClick, onToggleExclud
       onClick={() => onRowClick(row)}
     >
       <td style={{ ...P.td, textAlign: 'center', width: 40 }} onClick={e => e.stopPropagation()}>
-        {isRaw && (
-          <input
-            type="checkbox"
-            checked={excluded}
-            onChange={() => onToggleExclude(row.__결의번호)}
-            style={{ cursor: 'pointer', width: 15, height: 15 }}
-          />
-        )}
+        <input
+          type="checkbox"
+          checked={excluded}
+          onChange={() => onToggleExclude(excludeKey)}
+          style={{ cursor: 'pointer', width: 15, height: 15 }}
+        />
       </td>
       <td style={{ ...P.td, textAlign: 'center', color: '#aaa', width: 36 }}>{index + 1}</td>
       {TABLE_COLS.map(c => (
@@ -215,28 +214,25 @@ function TableRow({ row, index, excluded, isSelected, onRowClick, onToggleExclud
             : (row[c.key] || '-')}
         </td>
       ))}
-      <td style={{ ...P.td, textAlign: 'center', width: 80 }} onClick={e => e.stopPropagation()}>
-        {excluded && <span style={{ fontSize: 11, color: '#ff4d4f', fontWeight: 600 }}>제외</span>}
-        {!excluded && isNew && <span style={{ fontSize: 11, color: '#faad14' }}>미저장</span>}
-        {!excluded && isManual && !isNew && (
-          <button onClick={() => onDeleteManual(row.__id)} style={P.deleteBtn}>삭제</button>
-        )}
-        {!excluded && isRaw && <span style={{ fontSize: 11, color: '#aaa' }}>엑셀</span>}
+      <td style={{ ...P.td, textAlign: 'center', width: 80 }}>
+        {isRaw
+          ? <span style={P.badgeGray}>엑셀</span>
+          : <span style={P.badgeBlue}>수기</span>}
       </td>
     </tr>
   );
 }
 
 // ── 토스트 ────────────────────────────────────────────────────────────────────
-function Toast({ show }) {
-  if (!show) return null;
+function Toast({ message }) {
+  if (!message) return null;
   return (
     <div style={{
       position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)',
       background: '#1e293b', color: '#fff', padding: '12px 28px', borderRadius: 10,
       fontSize: 14, fontWeight: 600, zIndex: 999, boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
     }}>
-      ✓ 저장되었습니다
+      ✓ {message}
     </div>
   );
 }
@@ -249,7 +245,7 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
   const [panelMode, setPanelMode]       = useState('idle');  // 'idle' | 'add' | 'edit'
   const [selectedRow, setSelectedRow]   = useState(null);
   const [panelDraft, setPanelDraft]     = useState({});
-  const [toast, setToast]               = useState(false);
+  const [toast, setToast]               = useState(null);
 
   useEffect(() => {
     setExcludedSet(new Set(excludedSetProp));
@@ -320,8 +316,8 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
     console.log('DetailsPage handleSave — localNewRows:', localNewRows);
     if (onSave) onSave(excludedSet, localNewRows);
     setLocalNewRows([]);
-    setToast(true);
-    setTimeout(() => setToast(false), 2500);
+    setToast('저장되었습니다');
+    setTimeout(() => setToast(null), 2500);
   };
 
   const handleReset = () => {
@@ -344,7 +340,7 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
   const allRows       = [...rows, ...localNewRows];
   const total         = allRows.reduce((s, r) => s + (Number(r['물품금액']) || 0), 0);
   const excludedTotal = allRows
-    .filter(r => excludedSet.has(r.__결의번호))
+    .filter(r => excludedSet.has(r.__source === 'raw' ? r.__결의번호 : r.__id))
     .reduce((s, r) => s + (Number(r['물품금액']) || 0), 0);
   const isDirty = localNewRows.length > 0 ||
     rows.some(r => r.__source === 'raw' && ((r['제외여부'] === 1) !== excludedSet.has(r.__결의번호)));
@@ -368,7 +364,7 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
 
   return (
     <div>
-      <Toast show={toast} />
+      <Toast message={toast} />
 
       {/* 상단 고정 패널 */}
       <div style={P.stickyTop}>
@@ -388,7 +384,7 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
           <div style={{ display: 'flex', gap: 10 }}>
             <button style={P.resetBtn}   onClick={handleReset}>🗑 초기화</button>
             <button style={P.addBtn}     onClick={handleOpenAdd}>+ 행 추가</button>
-            <button style={P.refreshBtn} onClick={() => onRefresh?.()}>🔄 조회</button>
+            <button style={P.refreshBtn} onClick={() => { onRefresh?.(); setToast('조회되었습니다'); setTimeout(() => setToast(null), 2500); }}>🔄 조회</button>
             <button style={P.saveBtn}    onClick={handleSave}>{isDirty ? '💾 저장 *' : '💾 저장'}</button>
           </div>
         </div>
@@ -455,7 +451,7 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
                   key={row.__결의번호 ?? `manual-${row.__id ?? i}`}
                   row={row}
                   index={i}
-                  excluded={row.__source === 'raw' && excludedSet.has(row.__결의번호)}
+                  excluded={excludedSet.has(row.__source === 'raw' ? row.__결의번호 : row.__id)}
                   isSelected={
                     selectedRow != null && (
                       (row.__id != null        && row.__id        === selectedRow.__id) ||
@@ -464,7 +460,6 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
                   }
                   onRowClick={handleRowClick}
                   onToggleExclude={toggleExclude}
-                  onDeleteManual={handleDeleteManual}
                   isNew={!!row.__isNew}
                 />
               ))}
@@ -501,7 +496,8 @@ const P = {
   table:        { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
   th:           { padding: '11px 12px', fontWeight: 600, color: '#8B95A1', borderBottom: '1px solid #F2F4F6', textAlign: 'left', whiteSpace: 'nowrap', background: '#F9FAFB', fontSize: 12 },
   td:           { padding: '10px 12px', borderBottom: '1px solid #F2F4F6', whiteSpace: 'nowrap', color: '#191F28' },
-  deleteBtn:    { padding: '4px 10px', background: '#FFF0F1', color: '#F04452', border: 'none', borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: 'pointer' },
+  badgeGray:    { display: 'inline-block', padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: '#F2F4F6', color: '#8B95A1' },
+  badgeBlue:    { display: 'inline-block', padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: '#EBF3FE', color: '#3182F6' },
 };
 
 const F = {
