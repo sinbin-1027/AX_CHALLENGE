@@ -4,6 +4,7 @@ import {
   TOTAL_POINTS,
   calcTargetAmount,
   calcAchievedPoints,
+  calcFinalScore,
 } from '../data/targets.js';
 
 const ONNURI    = '온누리상품권';
@@ -86,7 +87,13 @@ export function calcEngine(rows, overrides = {}) {
   const baseAmounts = aggregateBaseAmounts(rows);
   const actuals     = aggregateActuals(rows);
 
-  const results = TARGETS.map(target => {
+  // 직군별 지표 배점 override 적용 (e.g. startup.points: 1.0)
+  const effectiveTargets = TARGETS.map(t => {
+    const over = overrides.targetOverrides?.[t.key];
+    return over ? { ...t, ...over } : t;
+  });
+
+  const results = effectiveTargets.map(target => {
     const { targetAmount, denominator } = calcTargetAmount(
       target,
       baseAmounts,
@@ -124,7 +131,7 @@ export function calcEngine(rows, overrides = {}) {
   const totalScore  = results.reduce((acc, r) => acc + r.score, 0);
   const scoreWeight = overrides.scoreWeight ?? TOTAL_SCORE_WEIGHT;
   const totalPts    = overrides.totalPoints  ?? TOTAL_POINTS;
-  const finalScore  = (scoreWeight * totalScore) / totalPts;
+  const finalScore  = calcFinalScore(totalScore, scoreWeight, totalPts);
 
   const stats = {
     totalPurchaseAll: baseAmounts.totalPurchase + (actuals.onnuri_voucher ?? 0),

@@ -819,7 +819,7 @@ const SIM = {
 };
 
 // ── 메인 ─────────────────────────────────────────────────────────────────────
-export default function Dashboard({ results, totalScore, finalScore, stats, rows = [] }) {
+export default function Dashboard({ results, totalScore, finalScore, stats, rows = [], maxScore }) {
   const [showDetail, setShowDetail] = useState(false);
   const achieved    = results.filter(r => r.achieved);
   const notAchieved = results.filter(r => !r.achieved);
@@ -875,7 +875,7 @@ export default function Dashboard({ results, totalScore, finalScore, stats, rows
           icon="⭐"
           title="공공구매 점수"
           value={finalScore.toFixed(2)}
-          unit="/ 4.00점"
+          unit={`/ ${maxScore?.toFixed(2) ?? '4.00'}점`}
           sub={finalScore >= 3 ? '우수' : finalScore >= 2 ? '보통' : '미흡'}
           valueColor={scoreColor}
         />

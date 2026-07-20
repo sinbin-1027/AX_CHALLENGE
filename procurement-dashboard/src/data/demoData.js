@@ -30,7 +30,7 @@ const demoData = {
 
   // 기업평가데이터실 (기획관리, 14명)
   // green_target 2,247,000 / jawal_target 1,420,000 / onnuri_target 3,500,000
-  dept_01: [
+  '기업평가데이터실': [
     R(G,  5000000, { s:1, st:1, gp:1 }),
     R(G,  3000000, { s:1, w:1 }),
     R(G,  2000000, { s:1, td:1, nt:1 }),
@@ -49,7 +49,7 @@ const demoData = {
 
   // ICT운영실 (기획관리, 10명)
   // green_target 1,800,000 / jawal_target 1,200,000 / onnuri_target 2,500,000
-  dept_02: [
+  'ICT운영실': [
     R(G,  3500000, { s:1, st:1, gp:1 }),
     R(G,  2200000, { s:1, w:1 }),
     R(G,  1500000, { s:1, td:1, nt:1 }),
@@ -67,7 +67,7 @@ const demoData = {
 
   // 제조AI지원처 (사업, 18명)
   // green_target 3,000,000 / jawal_target 1,800,000 / onnuri_target 4,500,000
-  dept_03: [
+  '제조AI지원처': [
     R(G,  7000000, { s:1, st:1, gp:1 }),
     R(G,  4000000, { s:1, w:1 }),
     R(G,  3000000, { s:1, td:1, nt:1 }),
@@ -86,7 +86,7 @@ const demoData = {
 
   // 글로벌협력처 (사업, 12명)
   // green_target 2,000,000 / jawal_target 1,500,000 / onnuri_target 3,000,000
-  dept_04: [
+  '글로벌협력처': [
     R(G,  4500000, { s:1, st:1, gp:1 }),
     R(G,  2800000, { s:1, w:1 }),
     R(G,  2000000, { s:1, td:1, nt:1 }),
@@ -105,7 +105,7 @@ const demoData = {
 
   // 서부권금융업무지원실 (금융업무지원, 8명)
   // green_target 1,500,000 / jawal_target 1,000,000 / onnuri_target 2,000,000
-  dept_05: [
+  '서부권금융업무지원실': [
     R(G,  3000000, { s:1, st:1, gp:1 }),
     R(G,  1800000, { s:1, w:1 }),
     R(G,  1200000, { s:1, td:1, nt:1 }),
@@ -123,7 +123,7 @@ const demoData = {
 
   // 경남서부지부 (지역본지부, 20명)
   // green_target 3,500,000 / jawal_target 2,000,000 / onnuri_target 5,000,000
-  dept_06: [
+  '경남서부지부': [
     R(G,  8000000, { s:1, st:1, gp:1 }),
     R(G,  5000000, { s:1, w:1 }),
     R(G,  3500000, { s:1, td:1, nt:1 }),
@@ -142,7 +142,7 @@ const demoData = {
 
   // 부산경남연수원 (연수, 15명) — extraTarget: innovative_product
   // green_target 2,500,000 / jawal_target 1,600,000 / onnuri_target 3,750,000
-  dept_07: [
+  '부산경남연수원': [
     R(G,  5500000, { s:1, st:1, gp:1 }),
     R(G,  3500000, { s:1, w:1 }),
     R(G,  2500000, { s:1, td:1, nt:1 }),
