@@ -25,7 +25,6 @@ const TABLE_COLS = [
   { key: '결의번호',       label: '결의번호',  align: 'left'   },
   { key: '발의일자',       label: '발의일자',  align: 'left',  fmt: fmtDate },
   { key: '구매구분',       label: '구매구분',  align: 'left'   },
-  { key: '부서명',         label: '부서명',    align: 'left'   },
   { key: '적요',           label: '적요',      align: 'left',  maxWidth: 200 },
   { key: '수령인사업자명', label: '거래처',    align: 'left',  maxWidth: 160 },
   { key: '발주품목명',     label: '품목명',    align: 'left',  maxWidth: 160 },
@@ -36,9 +35,9 @@ const FLAGS = [
   { key: '중소기업제품(연동)',       label: '중소기업'   },
   { key: '여성기업제품(연동)',       label: '여성기업'   },
   { key: '사회적기업',               label: '사회적기업' },
-  { key: '사회적협동조합제품여부',   label: '협동조합'   },
+  { key: '사회적협동조합제품여부',   label: '사회적협동조합' },
   { key: '장애인구매(연동)',         label: '장애인기업' },
-  { key: '장애인표준사업장여부',     label: '표준사업장' },
+  { key: '장애인표준사업장여부',     label: '장애인표준사업장' },
   { key: '중증장애인제품',           label: '중증장애인' },
   { key: '창업기업제품',             label: '창업기업'   },
   { key: '친환경제품',               label: '녹색제품'   },
@@ -51,7 +50,7 @@ const FLAGS = [
 
 const CATEGORIES = ['물품', '용역', '공사', '온누리상품권', '없음'];
 
-const SORTABLE_KEYS = new Set(['결의번호', '발의일자', '구매구분', '부서명', '적요', '수령인사업자명', '발주품목명', '물품금액']);
+const SORTABLE_KEYS = new Set(['결의번호', '발의일자', '구매구분', '적요', '수령인사업자명', '발주품목명', '물품금액']);
 
 function normFlag(val) {
   return (val === 'Y' || val === '해당있음') ? 'Y' : '';
@@ -59,7 +58,7 @@ function normFlag(val) {
 
 function emptyRow() {
   const row = {
-    '집행구분': 'Y', '발의일자': '', '구매구분': '물품', '부서명': '',
+    '집행구분': 'Y', '발의일자': '', '구매구분': '물품',
     '적요': '', '수령인사업자명': '', '발주품목명': '', '물품금액': '',
   };
   FLAGS.forEach(f => { row[f.key] = ''; });
@@ -71,7 +70,6 @@ function rowToDraft(row) {
     '집행구분':       row['집행구분'] ?? 'Y',
     '발의일자':       toDateInput(row['발의일자']),
     '구매구분':       row['구매구분'] ?? '물품',
-    '부서명':         row['부서명'] ?? '',
     '적요':           row['적요'] ?? '',
     '수령인사업자명': row['수령인사업자명'] ?? '',
     '발주품목명':     row['발주품목명'] ?? '',
@@ -108,7 +106,6 @@ function EditPanel({ mode, draft, selectedRow, onChange, onToggleFlag, onConfirm
       <div style={F.grid}>
         {[
           { key: '발의일자',       label: '발의일자',  type: 'date'   },
-          { key: '부서명',         label: '부서명',    type: 'text'   },
           { key: '수령인사업자명', label: '거래처',    type: 'text'   },
           { key: '발주품목명',     label: '품목명',    type: 'text'   },
           { key: '적요',           label: '적요',      type: 'text'   },

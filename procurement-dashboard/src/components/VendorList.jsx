@@ -7,9 +7,9 @@ const CERT_FILTERS = [
   { value: 'startup',           label: '창업기업'  },
   { value: 'disabled',          label: '장애인기업' },
   { value: 'severe_disabled',   label: '중증장애인' },
-  { value: 'standard_workshop', label: '표준사업장' },
+  { value: 'standard_workshop', label: '장애인표준사업장' },
   { value: 'social',            label: '사회적기업' },
-  { value: 'cooperative',       label: '협동조합'  },
+  { value: 'cooperative',       label: '사회적협동조합' },
   { value: 'green',             label: '녹색제품'  },
   { value: 'jawal',             label: '자활용사촌' },
   { value: 'pilot',             label: '시범구매'  },
@@ -24,9 +24,9 @@ const CERT_COLOR = {
   '창업기업':  { bg: '#f9f0ff', text: '#531dab', border: '#d3adf7' },
   '장애인기업':{ bg: '#fff7e6', text: '#d46b08', border: '#ffd591' },
   '중증장애인':{ bg: '#fff2e8', text: '#ad2102', border: '#ffbb96' },
-  '표준사업장':{ bg: '#e6fffb', text: '#006d75', border: '#87e8de' },
+  '장애인표준사업장':{ bg: '#e6fffb', text: '#006d75', border: '#87e8de' },
   '사회적기업':{ bg: '#f6ffed', text: '#389e0d', border: '#b7eb8f' },
-  '협동조합':  { bg: '#e6fff8', text: '#08979c', border: '#87e8cb' },
+  '사회적협동조합':{ bg: '#e6fff8', text: '#08979c', border: '#87e8cb' },
   '녹색제품':  { bg: '#fcffe6', text: '#5b8c00', border: '#eaff8f' },
   '자활용사촌':{ bg: '#fff1b8', text: '#874d00', border: '#ffd666' },
   '시범구매':  { bg: '#f0f5ff', text: '#1d39c4', border: '#adc6ff' },
@@ -52,7 +52,7 @@ function CertBadge({ label }) {
 function DetailModal({ vendor, onClose }) {
   const ALL_CERTS = [
     '중소기업','여성기업','창업기업','장애인기업','중증장애인',
-    '표준사업장','사회적기업','협동조합','녹색제품','자활용사촌',
+    '장애인표준사업장','사회적기업','사회적협동조합','녹색제품','자활용사촌',
     '시범구매','기술개발','NEP','혁신제품',
   ];
 
