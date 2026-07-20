@@ -68,7 +68,7 @@ export const TARGETS = [
   },
   {
     key: 'cooperative',
-    label: '협동조합',
+    label: '사회적협동조합',
     type: 'goods_service_ratio',
     rate: 0.001,
     points: 0.3,
@@ -84,7 +84,7 @@ export const TARGETS = [
   },
   {
     key: 'standard_workshop',
-    label: '표준사업장',
+    label: '장애인표준사업장',
     type: 'goods_service_ratio',
     rate: 0.008,
     points: 0.5,
