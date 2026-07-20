@@ -2,11 +2,10 @@ import { useState, useRef, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 
 const SHEET_NAME = 'RAW';
-const API_BASE = process.env.REACT_APP_API_URL;
 
 export default function FileUpload({ onDataLoad }) {
   const [dragging, setDragging] = useState(false);
-  const [status, setStatus]     = useState('idle'); // idle | parsing | saving | done | error
+  const [status, setStatus]     = useState('idle'); // idle | parsing | done | error
   const [fileInfo, setFileInfo] = useState(null);
   const [error, setError]       = useState(null);
   const inputRef = useRef(null);
@@ -43,26 +42,9 @@ export default function FileUpload({ onDataLoad }) {
 
     if (!rows) return;
 
-    // 2. 백엔드 저장
-    setStatus('saving');
-    const uploadedAt = new Date().toISOString();
-    try {
-      const token   = localStorage.getItem('token');
-      const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
-
-      // raw_purchases 테이블에 결의번호 기준 저장
-      const res = await fetch(`${API_BASE}/api/purchases/upload`, {
-        method: 'POST', headers,
-        body: JSON.stringify({ rows }),
-      });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message ?? '저장 실패');
-    } catch (err) {
-      setError(`저장 실패: ${err.message}`);
-    }
-
     setFileInfo({ name: file.name, count: rows.length });
     setStatus('done');
-    onDataLoad(rows, { filename: file.name, uploadedAt });
+    onDataLoad(rows);
   }, [onDataLoad]);
 
   const handleDrop     = useCallback((e) => { e.preventDefault(); setDragging(false); processFile(e.dataTransfer.files[0]); }, [processFile]);
@@ -71,7 +53,7 @@ export default function FileUpload({ onDataLoad }) {
   const handleChange    = (e) => processFile(e.target.files[0]);
   const handleClick     = ()  => inputRef.current?.click();
 
-  const loading = status === 'parsing' || status === 'saving';
+  const loading = status === 'parsing';
 
   return (
     <div style={styles.wrapper}>
@@ -87,7 +69,7 @@ export default function FileUpload({ onDataLoad }) {
         {loading ? (
           <div style={styles.status}>
             <span style={styles.spinner} />
-            <span>{status === 'parsing' ? '파일 분석 중...' : '서버에 저장 중...'}</span>
+            <span>파일 분석 중...</span>
           </div>
         ) : fileInfo ? (
           <div style={styles.status}>

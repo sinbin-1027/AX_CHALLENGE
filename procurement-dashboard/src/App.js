@@ -21,8 +21,31 @@ function AppLayout() {
   const [showUploadModal, setShowUploadModal]     = useState(false);
   const [excludedSetMap, setExcludedSetMap]       = useState({});  // { deptId: Set<결의번호> }
   const [manualRowsMap, setManualRowsMap]         = useState({});  // { deptId: rows[] }
+  const [vendorRegistry, setVendorRegistry]       = useState([]);  // 업체 목록 (로컬)
 
   const handleDeptChange = (e) => setDeptId(e.target.value);
+
+  // 업체 인증 업로드 — certType별 rows를 vendorRegistry에 병합
+  const handleVendorUpload = (certType, certLabel, rows) => {
+    const today = new Date().toISOString().slice(0, 10);
+    setVendorRegistry(prev => {
+      const map = new Map(prev.map(v => [v.사업자번호, { ...v, 보유인증: [...v.보유인증], 인증상세: { ...v.인증상세 } }]));
+      rows.forEach(row => {
+        const bizNo = String(row['사업자번호'] ?? '').trim();
+        if (!bizNo) return;
+        if (!map.has(bizNo)) {
+          map.set(bizNo, { 사업자번호: bizNo, 업체명: String(row['업체명'] ?? ''), 취급품목: String(row['취급품목'] ?? ''), 보유인증: [], 인증상세: {}, 인증수: 0, 데이터기준일: today });
+        }
+        const v = map.get(bizNo);
+        if (!v.보유인증.includes(certLabel)) {
+          v.보유인증.push(certLabel);
+          v.인증상세[certLabel] = true;
+          v.인증수 = v.보유인증.length;
+        }
+      });
+      return Array.from(map.values());
+    });
+  };
 
   // FileUpload 완료 콜백 — 기존 업로드 데이터와 합치기 (결의번호 중복 제외)
   const handleDataLoad = (newUploadedRows) => {
@@ -196,8 +219,8 @@ function AppLayout() {
 
             {/* 데이터 관리 */}
             <Route path="/data/uploads"   element={<ComingSoon title="업로드 기록" />} />
-            <Route path="/data/vendors"   element={<VendorList />} />
-            <Route path="/data/recommend" element={<VendorRecommend results={result?.results ?? []} />} />
+            <Route path="/data/vendors"   element={<VendorList vendors={vendorRegistry} />} />
+            <Route path="/data/recommend" element={<VendorRecommend results={result?.results ?? []} vendors={vendorRegistry} onVendorUpload={handleVendorUpload} />} />
 
             {/* 구버전 경로 리다이렉트 */}
             <Route path="/details"     element={<Navigate to="/procurement/register" replace />} />
