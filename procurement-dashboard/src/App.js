@@ -39,7 +39,6 @@ function AppLayout({ onLogout }) {
   const [apiRowsMap, setApiRowsMap]           = useState({});
   const [loadingRows, setLoadingRows]         = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [vendorRegistry, setVendorRegistry]   = useState([]);
 
   // ── API 조회 헬퍼 ───────────────────────────────────────────────────────────
 
@@ -75,27 +74,6 @@ function AppLayout({ onLogout }) {
   // ── 이벤트 핸들러 ───────────────────────────────────────────────────────────
 
   const handleDeptChange = (e) => setDeptId(Number(e.target.value));
-
-  const handleVendorUpload = (certType, certLabel, rows) => {
-    const today = new Date().toISOString().slice(0, 10);
-    setVendorRegistry(prev => {
-      const map = new Map(prev.map(v => [v.사업자번호, { ...v, 보유인증: [...v.보유인증], 인증상세: { ...v.인증상세 } }]));
-      rows.forEach(row => {
-        const bizNo = String(row['사업자번호'] ?? '').trim();
-        if (!bizNo) return;
-        if (!map.has(bizNo)) {
-          map.set(bizNo, { 사업자번호: bizNo, 업체명: String(row['업체명'] ?? ''), 취급품목: String(row['취급품목'] ?? ''), 보유인증: [], 인증상세: {}, 인증수: 0, 데이터기준일: today });
-        }
-        const v = map.get(bizNo);
-        if (!v.보유인증.includes(certLabel)) {
-          v.보유인증.push(certLabel);
-          v.인증상세[certLabel] = true;
-          v.인증수 = v.보유인증.length;
-        }
-      });
-      return Array.from(map.values());
-    });
-  };
 
   const handleDataLoad = () => {
     fetchRows(deptId);
@@ -240,8 +218,8 @@ function AppLayout({ onLogout }) {
             <Route path="/ai/regulations" element={<ComingSoon title="규정/가이드" />} />
 
             <Route path="/data/uploads"   element={<ComingSoon title="업로드 기록" />} />
-            <Route path="/data/vendors"   element={<VendorList vendors={vendorRegistry} />} />
-            <Route path="/data/recommend" element={<VendorRecommend results={result?.results ?? []} vendors={vendorRegistry} onVendorUpload={handleVendorUpload} />} />
+            <Route path="/data/vendors"   element={<VendorList />} />
+            <Route path="/data/recommend" element={<VendorRecommend insufficientKeys={(result?.results ?? []).filter(r => !r.achieved).map(r => r.key)} />} />
 
             <Route path="/details"     element={<Navigate to="/procurement/register" replace />} />
             <Route path="/vendors"     element={<Navigate to="/data/recommend" replace />} />
