@@ -1,226 +1,236 @@
-const express = require('express');
-const auth    = require('../middleware/auth');
-const db      = require('../db/database');
+const express  = require('express');
+const auth     = require('../middleware/auth');
+const { pool } = require('../db/database');
 
 const router = express.Router();
 
 // ── 상수 ─────────────────────────────────────────────────────────────────────
 
-const CERT_TYPE_TO_COL = {
-  sme:               '인증_중소기업',
-  women:             '인증_여성',
-  startup:           '인증_창업',
-  disabled:          '인증_장애인',
-  severe_disabled:   '인증_중증장애인',
-  standard_workshop: '인증_표준사업장',
-  social:            '인증_사회적기업',
-  cooperative:       '인증_협동조합',
-  green:             '인증_녹색',
-  jawal:             '인증_자활용사촌',
-  pilot:             '인증_시범구매',
-  tech:              '인증_기술개발',
-  nep:               '인증_NEP',
-  innovative_product:'인증_혁신제품',
+// certType → 인증종류 텍스트 (vendors 테이블 인증종류 컬럼값)
+const CERT_TYPE_TO_KIND = {
+  sme:               '중소기업',
+  women:             '여성기업',
+  startup:           '창업기업',
+  disabled:          '장애인기업',
+  severe_disabled:   '중증장애인',
+  standard_workshop: '장애인표준사업장',
+  social:            '사회적기업',
+  cooperative:       '사회적협동조합',
+  green:             '녹색제품',
+  jawal:             '자활용사촌',
+  pilot:             '시범구매',
+  tech:              '기술개발',
+  nep:               'NEP',
+  innovative_product:'혁신제품',
 };
 
-const KEY_TO_COL = {
-  sme:                    '인증_중소기업',
-  women_goods:            '인증_여성',
-  women_service:          '인증_여성',
-  women_construction:     '인증_여성',
-  startup:                '인증_창업',
-  disabled_enterprise:    '인증_장애인',
-  severe_disabled:        '인증_중증장애인',
-  standard_workshop:      '인증_표준사업장',
-  social_enterprise:      '인증_사회적기업',
-  cooperative:            '인증_협동조합',
-  green_product:          '인증_녹색',
-  jawal_veteran:          '인증_자활용사촌',
-  pilot_purchase:         '인증_시범구매',
-  tech_development:       '인증_기술개발',
-  nep:                    '인증_NEP',
-  innovative_product:     '인증_혁신제품',
+// 지표 key → 인증종류 (recommend용)
+const KEY_TO_KIND = {
+  sme:                 '중소기업',
+  women_goods:         '여성기업',
+  women_service:       '여성기업',
+  women_construction:  '여성기업',
+  startup:             '창업기업',
+  disabled_enterprise: '장애인기업',
+  severe_disabled:     '중증장애인',
+  standard_workshop:   '장애인표준사업장',
+  social_enterprise:   '사회적기업',
+  cooperative:         '사회적협동조합',
+  green_product:       '녹색제품',
+  jawal_veteran:       '자활용사촌',
+  pilot_purchase:      '시범구매',
+  tech_development:    '기술개발',
+  nep:                 'NEP',
+  innovative_product:  '혁신제품',
 };
-
-const ALL_CERT_COLS = [
-  '인증_중소기업', '인증_여성',    '인증_창업',    '인증_장애인',
-  '인증_중증장애인','인증_표준사업장','인증_사회적기업','인증_협동조합',
-  '인증_녹색',     '인증_자활용사촌','인증_시범구매', '인증_기술개발',
-  '인증_NEP',      '인증_혁신제품',
-];
-
-const CERT_LABEL = {
-  '인증_중소기업':   '중소기업',
-  '인증_여성':       '여성기업',
-  '인증_창업':       '창업기업',
-  '인증_장애인':     '장애인기업',
-  '인증_중증장애인': '중증장애인',
-  '인증_표준사업장': '표준사업장',
-  '인증_사회적기업': '사회적기업',
-  '인증_협동조합':   '협동조합',
-  '인증_녹색':       '녹색제품',
-  '인증_자활용사촌': '자활용사촌',
-  '인증_시범구매':   '시범구매',
-  '인증_기술개발':   '기술개발',
-  '인증_NEP':        'NEP',
-  '인증_혁신제품':   '혁신제품',
-};
-
-// 인증수 재계산 표현식
-const CERT_SUM_EXPR = ALL_CERT_COLS.map(c => `COALESCE(${c}, 0)`).join(' + ');
 
 // ── POST /api/vendors/upload ──────────────────────────────────────────────────
 
-router.post('/upload', auth, (req, res) => {
-  const { certType, rows } = req.body;
-
-  if (!certType || !Array.isArray(rows) || rows.length === 0) {
-    return res.status(400).json({ message: 'certType과 rows 배열이 필요합니다.' });
-  }
-
-  const certCol = CERT_TYPE_TO_COL[certType];
-  if (!certCol) {
-    return res.status(400).json({ message: `유효하지 않은 certType: ${certType}` });
-  }
-
-  const today = new Date().toISOString().slice(0, 10);
-  let inserted = 0;
-  let updated  = 0;
-
-  db.exec('BEGIN');
+router.post('/upload', auth, async (req, res, next) => {
+  const client = await pool.connect();
   try {
+    const { certType, rows } = req.body;
+
+    if (!certType || !Array.isArray(rows) || rows.length === 0) {
+      return res.status(400).json({ message: 'certType과 rows 배열이 필요합니다.' });
+    }
+
+    const certKind = CERT_TYPE_TO_KIND[certType];
+    if (!certKind) {
+      return res.status(400).json({ message: `유효하지 않은 certType: ${certType}` });
+    }
+
+    let inserted = 0, updated = 0;
+
+    await client.query('BEGIN');
+
     for (const row of rows) {
       const bizNo = String(row['사업자번호'] ?? '').trim();
       const name  = String(row['업체명']    ?? '').trim();
       if (!bizNo || !name) continue;
 
-      const item     = String(row['취급품목'] ?? '').trim();
-      const existing = db.prepare('SELECT id FROM vendors WHERE 사업자번호 = ?').get(bizNo);
+      const item     = String(row['취급품목']    ?? '').trim() || null;
+      const expires  = row['만료일자']  ? String(row['만료일자'])  : null;
+      const canceled = row['취소일자']  ? String(row['취소일자'])  : null;
+      const status   = String(row['상태'] ?? '유효');
+      const baseDate = row['데이터기준일'] ? String(row['데이터기준일']) : null;
 
-      if (existing) {
-        db.prepare(`
-          UPDATE vendors
-          SET ${certCol} = 1,
-              데이터기준일 = ?,
-              updated_at   = datetime('now', 'localtime')
-          WHERE 사업자번호 = ?
-        `).run(today, bizNo);
-        updated++;
-      } else {
-        db.prepare(`
-          INSERT INTO vendors (사업자번호, 업체명, 취급품목, ${certCol}, 인증수, 데이터기준일, updated_at)
-          VALUES (?, ?, ?, 1, 1, ?, datetime('now', 'localtime'))
-        `).run(bizNo, name, item, today);
-        inserted++;
-      }
+      const { rowCount } = await client.query(`
+        INSERT INTO vendors (사업자번호, 업체명, 인증종류, 취급품목, 만료일자, 취소일자, 상태, 데이터기준일)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        ON CONFLICT (사업자번호, 인증종류) DO UPDATE SET
+          업체명       = EXCLUDED.업체명,
+          취급품목     = EXCLUDED.취급품목,
+          만료일자     = EXCLUDED.만료일자,
+          취소일자     = EXCLUDED.취소일자,
+          상태         = EXCLUDED.상태,
+          데이터기준일 = EXCLUDED.데이터기준일,
+          updated_at   = NOW()
+      `, [bizNo, name, certKind, item, expires, canceled, status, baseDate]);
 
-      db.prepare(`
-        UPDATE vendors SET 인증수 = (${CERT_SUM_EXPR}) WHERE 사업자번호 = ?
-      `).run(bizNo);
+      if (rowCount > 0) inserted++; else updated++;
     }
-    db.exec('COMMIT');
-  } catch (err) {
-    db.exec('ROLLBACK');
-    throw err;
-  }
 
-  res.status(201).json({
-    certType,
-    certCol,
-    inserted,
-    updated,
-    total: inserted + updated,
-  });
+    await client.query('COMMIT');
+    res.status(201).json({ certType, certKind, inserted, updated, total: inserted + updated });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
+  }
 });
 
 // ── GET /api/vendors/recommend ────────────────────────────────────────────────
 
-router.get('/recommend', auth, (req, res) => {
-  const raw = req.query.insufficientKeys ?? '';
-  const keys = raw.split(',').map(k => k.trim()).filter(Boolean);
+router.get('/recommend', auth, async (req, res, next) => {
+  try {
+    const raw  = req.query.insufficientKeys ?? '';
+    const keys = raw.split(',').map(k => k.trim()).filter(Boolean);
 
-  // insufficientKeys → 유니크 인증 컬럼 목록
-  const certCols = [...new Set(keys.map(k => KEY_TO_COL[k]).filter(Boolean))];
+    const certKinds = [...new Set(keys.map(k => KEY_TO_KIND[k]).filter(Boolean))];
 
-  let vendors;
+    let rows;
+    if (certKinds.length === 0) {
+      const result = await pool.query(`
+        SELECT
+          사업자번호,
+          MAX(업체명)       AS 업체명,
+          MAX(취급품목)     AS 취급품목,
+          MAX(데이터기준일) AS 데이터기준일,
+          array_agg(인증종류 ORDER BY 인증종류) AS certs,
+          COUNT(*)          AS cert_count
+        FROM vendors
+        GROUP BY 사업자번호
+        ORDER BY cert_count DESC
+        LIMIT 10
+      `);
+      rows = result.rows;
+    } else {
+      const result = await pool.query(`
+        SELECT
+          사업자번호,
+          MAX(업체명)       AS 업체명,
+          MAX(취급품목)     AS 취급품목,
+          MAX(데이터기준일) AS 데이터기준일,
+          array_agg(인증종류 ORDER BY 인증종류) AS certs,
+          COUNT(*) FILTER (WHERE 인증종류 = ANY($1)) AS match_score,
+          COUNT(*) AS cert_count
+        FROM vendors
+        WHERE 사업자번호 IN (
+          SELECT DISTINCT 사업자번호 FROM vendors WHERE 인증종류 = ANY($1)
+        )
+        GROUP BY 사업자번호
+        ORDER BY match_score DESC, cert_count DESC
+        LIMIT 10
+      `, [certKinds]);
+      rows = result.rows;
+    }
 
-  if (certCols.length === 0) {
-    vendors = db.prepare(
-      'SELECT * FROM vendors ORDER BY 인증수 DESC LIMIT 10'
-    ).all();
-  } else {
-    const scoreExpr  = certCols.map(c => `COALESCE(${c}, 0)`).join(' + ');
-    const whereClause = certCols.map(c => `${c} = 1`).join(' OR ');
+    const result = rows.map(v => ({
+      id:          null,
+      사업자번호:  v['사업자번호'],
+      업체명:      v['업체명'],
+      취급품목:    v['취급품목'],
+      인증수:      Number(v.cert_count),
+      match_score: v.match_score ? Number(v.match_score) : null,
+      데이터기준일:v['데이터기준일'],
+      보유인증:    v.certs ?? [],
+    }));
 
-    vendors = db.prepare(`
-      SELECT *, (${scoreExpr}) AS match_score
-      FROM vendors
-      WHERE ${whereClause}
-      ORDER BY match_score DESC, 인증수 DESC
-      LIMIT 10
-    `).all();
+    res.json(result);
+  } catch (err) {
+    next(err);
   }
-
-  // 보유 인증 레이블 목록 추가
-  const result = vendors.map(v => ({
-    id:          v.id,
-    사업자번호:  v['사업자번호'],
-    업체명:      v['업체명'],
-    취급품목:    v['취급품목'],
-    인증수:      v['인증수'],
-    match_score: v.match_score ?? null,
-    데이터기준일:v['데이터기준일'],
-    보유인증: ALL_CERT_COLS
-      .filter(c => v[c] === 1)
-      .map(c => CERT_LABEL[c]),
-  }));
-
-  res.json(result);
 });
 
 // ── GET /api/vendors/list ─────────────────────────────────────────────────────
 
-router.get('/list', auth, (req, res) => {
-  const search    = req.query.search     ?? '';
-  const certFilter= req.query.certFilter ?? '';
-  const pageNum   = Math.max(1, parseInt(req.query.page  ?? '1'));
-  const limitNum  = Math.min(100, Math.max(1, parseInt(req.query.limit ?? '20')));
-  const offset    = (pageNum - 1) * limitNum;
+router.get('/list', auth, async (req, res, next) => {
+  try {
+    const search     = req.query.search     ?? '';
+    const certFilter = req.query.certFilter ?? '';
+    const pageNum    = Math.max(1, parseInt(req.query.page  ?? '1'));
+    const limitNum   = Math.min(100, Math.max(1, parseInt(req.query.limit ?? '20')));
+    const offset     = (pageNum - 1) * limitNum;
 
-  const conditions = ['1=1'];
-  const params     = [];
+    const params = [];
+    const wheres = [];
 
-  if (search) {
-    conditions.push('(업체명 LIKE ? OR 사업자번호 LIKE ?)');
-    params.push(`%${search}%`, `%${search}%`);
+    if (search) {
+      params.push(`%${search}%`);
+      const p = `$${params.length}`;
+      wheres.push(`(v.업체명 ILIKE ${p} OR v.사업자번호 ILIKE ${p})`);
+    }
+
+    if (certFilter && CERT_TYPE_TO_KIND[certFilter]) {
+      params.push(CERT_TYPE_TO_KIND[certFilter]);
+      wheres.push(`v.사업자번호 IN (SELECT DISTINCT 사업자번호 FROM vendors WHERE 인증종류 = $${params.length})`);
+    }
+
+    const whereClause = wheres.length ? 'WHERE ' + wheres.join(' AND ') : '';
+
+    const [countResult, dataResult] = await Promise.all([
+      pool.query(
+        `SELECT COUNT(DISTINCT v.사업자번호) AS total FROM vendors v ${whereClause}`,
+        params,
+      ),
+      pool.query(
+        `SELECT
+           v.사업자번호,
+           MAX(v.업체명)       AS 업체명,
+           MAX(v.취급품목)     AS 취급품목,
+           MAX(v.데이터기준일) AS 데이터기준일,
+           array_agg(v.인증종류 ORDER BY v.인증종류) AS certs,
+           COUNT(*) AS cert_count
+         FROM vendors v
+         ${whereClause}
+         GROUP BY v.사업자번호
+         ORDER BY cert_count DESC, MAX(v.updated_at) DESC
+         LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+        [...params, limitNum, offset],
+      ),
+    ]);
+
+    const vendors = dataResult.rows.map(v => ({
+      사업자번호:  v['사업자번호'],
+      업체명:      v['업체명'],
+      취급품목:    v['취급품목'],
+      인증수:      Number(v.cert_count),
+      데이터기준일:v['데이터기준일'],
+      보유인증:    v.certs ?? [],
+      인증상세:    Object.fromEntries((v.certs ?? []).map(c => [c, true])),
+    }));
+
+    res.json({
+      vendors,
+      total: Number(countResult.rows[0].total),
+      page:  pageNum,
+      limit: limitNum,
+    });
+  } catch (err) {
+    next(err);
   }
-
-  if (certFilter && CERT_TYPE_TO_COL[certFilter]) {
-    conditions.push(`${CERT_TYPE_TO_COL[certFilter]} = 1`);
-  }
-
-  const where = conditions.join(' AND ');
-
-  const { total } = db.prepare(
-    `SELECT COUNT(*) AS total FROM vendors WHERE ${where}`
-  ).get(...params);
-
-  const vendors = db.prepare(
-    `SELECT * FROM vendors WHERE ${where} ORDER BY 인증수 DESC, updated_at DESC LIMIT ? OFFSET ?`
-  ).all(...params, limitNum, offset);
-
-  const result = vendors.map(v => ({
-    id:          v.id,
-    사업자번호:  v['사업자번호'],
-    업체명:      v['업체명'],
-    취급품목:    v['취급품목'],
-    인증수:      v['인증수'],
-    데이터기준일:v['데이터기준일'],
-    보유인증:    ALL_CERT_COLS.filter(c => v[c] === 1).map(c => CERT_LABEL[c]),
-    인증상세:    Object.fromEntries(ALL_CERT_COLS.map(c => [CERT_LABEL[c], v[c] === 1])),
-  }));
-
-  res.json({ vendors: result, total, page: pageNum, limit: limitNum });
 });
 
 module.exports = router;

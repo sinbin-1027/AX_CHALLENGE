@@ -1,10 +1,10 @@
-const express = require('express');
-const auth    = require('../middleware/auth');
-const db      = require('../db/database');
+const express  = require('express');
+const auth     = require('../middleware/auth');
+const { pool } = require('../db/database');
 
 const router = express.Router();
 
-// ── 컬럼 매핑 ─────────────────────────────────────────────────────────────────
+// ── 컬럼 매핑 (DB 컬럼명 → calcEngine 키) ────────────────────────────────────
 
 const DB_TO_CALC = {
   '구매구분':                   '구매구분',
@@ -44,7 +44,7 @@ function toCalcRow(row) {
 function manualToCalcRow(row) {
   return {
     '구매구분':                   row['구매구분']              ?? '물품',
-    '물품금액':                   Number(row['금액'])          || 0,
+    '물품금액':                   Number(row['물품금액'])       || 0,
     '채주지급금액':               0,
     '중소기업제품(연동)':         row['중소기업제품']          ?? 'N',
     '여성기업제품(연동)':         row['여성기업제품']          ?? 'N',
@@ -68,76 +68,85 @@ function manualToCalcRow(row) {
   };
 }
 
-// ── GET /api/purchases/list (전체 - 화면 표시용) ──────────────────────────────
+// ── GET /api/purchases/list ───────────────────────────────────────────────────
 
-router.get('/list', auth, (req, res) => {
-  const userId = req.user.id;
+router.get('/list', auth, async (req, res, next) => {
+  try {
+    const deptId = req.query.deptId;
+    if (!deptId) return res.status(400).json({ message: 'deptId가 필요합니다.' });
 
-  const rawRows    = db.prepare('SELECT * FROM raw_purchases WHERE user_id = ? ORDER BY uploaded_at ASC').all(userId);
-  const manualRows = db.prepare('SELECT * FROM manual_purchases WHERE user_id = ? ORDER BY created_at ASC').all(userId);
+    const [rawResult, manualResult] = await Promise.all([
+      pool.query('SELECT * FROM raw_purchases WHERE dept_id = $1 ORDER BY uploaded_at ASC', [deptId]),
+      pool.query('SELECT * FROM manual_purchases WHERE dept_id = $1 ORDER BY created_at ASC', [deptId]),
+    ]);
 
-  res.json({
-    rows:        [...rawRows.map(toCalcRow), ...manualRows.map(manualToCalcRow)],
-    rawCount:    rawRows.length,
-    manualCount: manualRows.length,
-  });
+    res.json({
+      rows:        [...rawResult.rows.map(toCalcRow), ...manualResult.rows.map(manualToCalcRow)],
+      rawCount:    rawResult.rows.length,
+      manualCount: manualResult.rows.length,
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
-// ── GET /api/purchases/calc (제외여부=0만 - calcEngine용) ─────────────────────
+// ── GET /api/purchases/calc ───────────────────────────────────────────────────
 
-router.get('/calc', auth, (req, res) => {
-  const userId = req.user.id;
+router.get('/calc', auth, async (req, res, next) => {
+  try {
+    const deptId = req.query.deptId;
+    if (!deptId) return res.status(400).json({ message: 'deptId가 필요합니다.' });
 
-  const rawRows    = db.prepare('SELECT * FROM raw_purchases WHERE user_id = ? AND 제외여부 = 0 ORDER BY uploaded_at ASC').all(userId);
-  const manualRows = db.prepare('SELECT * FROM manual_purchases WHERE user_id = ? ORDER BY created_at ASC').all(userId);
+    const [rawResult, manualResult] = await Promise.all([
+      pool.query('SELECT * FROM raw_purchases WHERE dept_id = $1 AND 제외여부 = 0 ORDER BY uploaded_at ASC', [deptId]),
+      pool.query('SELECT * FROM manual_purchases WHERE dept_id = $1 ORDER BY created_at ASC', [deptId]),
+    ]);
 
-  res.json({
-    rows:        [...rawRows.map(toCalcRow), ...manualRows.map(manualToCalcRow)],
-    rawCount:    rawRows.length,
-    manualCount: manualRows.length,
-  });
+    res.json({
+      rows:        [...rawResult.rows.map(toCalcRow), ...manualResult.rows.map(manualToCalcRow)],
+      rawCount:    rawResult.rows.length,
+      manualCount: manualResult.rows.length,
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // ── POST /api/purchases/upload ────────────────────────────────────────────────
 
-router.post('/upload', auth, (req, res) => {
-  const { rows } = req.body;
-  if (!Array.isArray(rows) || rows.length === 0) {
-    return res.status(400).json({ message: 'rows 배열이 필요합니다.' });
-  }
-
-  // 기존 결의번호를 Set으로 일괄 조회
-  const existingSet = new Set(
-    db.prepare('SELECT 결의번호 FROM raw_purchases').all().map(r => r['결의번호'])
-  );
-
-  const insert = db.prepare(`
-    INSERT INTO raw_purchases
-      (결의번호, user_id, 구매구분, 채주지급금액, 물품금액, 적요, 부서명,
-       발의일자, 수령인사업자명, 발주품목명,
-       중소기업제품, 여성기업제품, 사회적기업, 사회적협동조합제품여부,
-       장애인구매, 장애인표준사업장여부, 중증장애인제품, 창업기업제품,
-       친환경제품, 자활용사촌제품, 시범구매여부, 기술개발제품대상품목조회,
-       신제품인증NEP여부, 신제품인증NEP대상품목, 혁신제품여부)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-  `);
-
-  let added = 0, skipped = 0;
-
-  db.exec('BEGIN');
+router.post('/upload', auth, async (req, res, next) => {
+  const client = await pool.connect();
   try {
+    const { deptId, rows } = req.body;
+    if (!deptId) return res.status(400).json({ message: 'deptId가 필요합니다.' });
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return res.status(400).json({ message: 'rows 배열이 필요합니다.' });
+    }
+
+    let added = 0, skipped = 0;
+
+    await client.query('BEGIN');
+
     for (const row of rows) {
       const bizNo = String(row['결의번호'] ?? '').trim();
-      if (!bizNo)                 { skipped++; continue; }
-      if (existingSet.has(bizNo)) { skipped++; continue; }
+      if (!bizNo) { skipped++; continue; }
 
-      insert.run(
-        bizNo, req.user.id,
+      const { rowCount } = await client.query(`
+        INSERT INTO raw_purchases
+          (dept_id, 결의번호, 구매구분, 채주지급금액, 물품금액, 적요,
+           발의일자, 수령인사업자명, 발주품목명,
+           중소기업제품, 여성기업제품, 사회적기업, 사회적협동조합제품여부,
+           장애인구매, 장애인표준사업장여부, 중증장애인제품, 창업기업제품,
+           친환경제품, 자활용사촌제품, 시범구매여부, 기술개발제품대상품목조회,
+           신제품인증NEP여부, 신제품인증NEP대상품목, 혁신제품여부)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+        ON CONFLICT (dept_id, 결의번호) DO NOTHING
+      `, [
+        deptId, bizNo,
         row['구매구분']                  ?? '',
         Number(row['채주지급금액'])      || 0,
         Number(row['물품금액'])          || 0,
         row['적요']                      ?? '',
-        row['부서명']                    ?? '',
         row['발의일자']                  ?? '',
         row['수령인사업자명']            ?? '',
         row['발주품목명']                ?? '',
@@ -156,128 +165,172 @@ router.post('/upload', auth, (req, res) => {
         row['신제품인증(NEP)여부']       ?? '',
         row['신제품인증(NEP) 대상품목']  ?? '',
         row['혁신제품여부']              ?? '',
-      );
-      existingSet.add(bizNo);
-      added++;
-    }
-    db.exec('COMMIT');
-  } catch (err) {
-    db.exec('ROLLBACK');
-    throw err;
-  }
+      ]);
 
-  res.status(201).json({ added, skipped });
+      if (rowCount > 0) added++; else skipped++;
+    }
+
+    await client.query('COMMIT');
+    res.status(201).json({ added, skipped });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
+  }
 });
 
 // ── PUT /api/purchases/exclude ────────────────────────────────────────────────
 
-router.put('/exclude', auth, (req, res) => {
-  const { excludeIds = [] } = req.body;
-  const userId = req.user.id;
-
-  db.exec('BEGIN');
+router.put('/exclude', auth, async (req, res, next) => {
+  const client = await pool.connect();
   try {
-    db.prepare('UPDATE raw_purchases SET 제외여부 = 0 WHERE user_id = ?').run(userId);
+    const { deptId, excludeIds = [] } = req.body;
+    if (!deptId) return res.status(400).json({ message: 'deptId가 필요합니다.' });
+
+    await client.query('BEGIN');
+
+    await client.query(
+      'UPDATE raw_purchases SET 제외여부 = 0 WHERE dept_id = $1',
+      [deptId],
+    );
 
     if (excludeIds.length > 0) {
-      const stmt = db.prepare('UPDATE raw_purchases SET 제외여부 = 1 WHERE 결의번호 = ? AND user_id = ?');
       for (const bizNo of excludeIds) {
-        stmt.run(bizNo, userId);
+        await client.query(
+          'UPDATE raw_purchases SET 제외여부 = 1 WHERE 결의번호 = $1 AND dept_id = $2',
+          [bizNo, deptId],
+        );
       }
     }
-    db.exec('COMMIT');
-  } catch (err) {
-    db.exec('ROLLBACK');
-    throw err;
-  }
 
-  res.json({ ok: true, excludedCount: excludeIds.length });
+    await client.query('COMMIT');
+    res.json({ ok: true, excludedCount: excludeIds.length });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
+  }
 });
 
 // ── POST /api/purchases/manual ────────────────────────────────────────────────
 
-router.post('/manual', auth, (req, res) => {
-  const b = req.body;
-  const { lastInsertRowid } = db.prepare(`
-    INSERT INTO manual_purchases
-      (user_id, 품목명, 구매구분, 금액,
-       중소기업제품, 여성기업제품, 사회적기업, 사회적협동조합제품여부,
-       장애인구매, 장애인표준사업장여부, 중증장애인제품, 창업기업제품,
-       친환경제품, 자활용사촌제품, 시범구매여부, 기술개발제품대상품목조회,
-       신제품인증NEP여부, 신제품인증NEP대상품목, 혁신제품여부, 집행구분, 메모)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-  `).run(
-    req.user.id, b.품목명 ?? '', b.구매구분 ?? '물품', Number(b.금액) || 0,
-    b.중소기업제품 ?? 'N', b.여성기업제품 ?? 'N', b.사회적기업 ?? 'N',
-    b.사회적협동조합제품여부 ?? 'N', b.장애인구매 ?? 'N',
-    b.장애인표준사업장여부 ?? 'N', b.중증장애인제품 ?? 'N',
-    b.창업기업제품 ?? 'N', b.친환경제품 ?? 'N', b.자활용사촌제품 ?? 'N',
-    b.시범구매여부 ?? 'N', b.기술개발제품대상품목조회 ?? 'N',
-    b.신제품인증NEP여부 ?? 'N', b.신제품인증NEP대상품목 ?? 'N',
-    b.혁신제품여부 ?? 'N', b.집행구분 ?? 'Y', b.메모 ?? '',
-  );
+router.post('/manual', auth, async (req, res, next) => {
+  try {
+    const b = req.body;
+    if (!b.deptId) return res.status(400).json({ message: 'deptId가 필요합니다.' });
 
-  res.status(201).json({ id: Number(lastInsertRowid) });
+    const { rows } = await pool.query(`
+      INSERT INTO manual_purchases
+        (dept_id, 품목명, 구매구분, 물품금액,
+         중소기업제품, 여성기업제품, 사회적기업, 사회적협동조합제품여부,
+         장애인구매, 장애인표준사업장여부, 중증장애인제품, 창업기업제품,
+         친환경제품, 자활용사촌제품, 시범구매여부, 기술개발제품대상품목조회,
+         신제품인증NEP여부, 신제품인증NEP대상품목, 혁신제품여부, 집행구분, 메모)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+      RETURNING id
+    `, [
+      b.deptId, b.품목명 ?? '', b.구매구분 ?? '물품', Number(b.물품금액) || 0,
+      b.중소기업제품 ?? 'N', b.여성기업제품 ?? 'N', b.사회적기업 ?? 'N',
+      b.사회적협동조합제품여부 ?? 'N', b.장애인구매 ?? 'N',
+      b.장애인표준사업장여부 ?? 'N', b.중증장애인제품 ?? 'N',
+      b.창업기업제품 ?? 'N', b.친환경제품 ?? 'N', b.자활용사촌제품 ?? 'N',
+      b.시범구매여부 ?? 'N', b.기술개발제품대상품목조회 ?? 'N',
+      b.신제품인증NEP여부 ?? 'N', b.신제품인증NEP대상품목 ?? 'N',
+      b.혁신제품여부 ?? 'N', b.집행구분 ?? 'Y', b.메모 ?? '',
+    ]);
+
+    res.status(201).json({ id: rows[0].id });
+  } catch (err) {
+    next(err);
+  }
 });
 
-// ── PUT /api/purchases/manual/:id ────────────────────────────────────────────
+// ── PUT /api/purchases/manual/:id ─────────────────────────────────────────────
 
-router.put('/manual/:id', auth, (req, res) => {
-  const b  = req.body;
-  const id = Number(req.params.id);
+router.put('/manual/:id', auth, async (req, res, next) => {
+  try {
+    const b      = req.body;
+    const id     = Number(req.params.id);
+    const deptId = b.deptId;
+    if (!deptId) return res.status(400).json({ message: 'deptId가 필요합니다.' });
 
-  const existing = db.prepare('SELECT id FROM manual_purchases WHERE id = ? AND user_id = ?').get(id, req.user.id);
-  if (!existing) return res.status(404).json({ message: '항목을 찾을 수 없습니다.' });
+    const { rows: existing } = await pool.query(
+      'SELECT id FROM manual_purchases WHERE id = $1 AND dept_id = $2',
+      [id, deptId],
+    );
+    if (!existing.length) return res.status(404).json({ message: '항목을 찾을 수 없습니다.' });
 
-  db.prepare(`
-    UPDATE manual_purchases SET
-      품목명 = ?, 구매구분 = ?, 금액 = ?,
-      중소기업제품 = ?, 여성기업제품 = ?, 사회적기업 = ?,
-      사회적협동조합제품여부 = ?, 장애인구매 = ?, 장애인표준사업장여부 = ?,
-      중증장애인제품 = ?, 창업기업제품 = ?, 친환경제품 = ?,
-      자활용사촌제품 = ?, 시범구매여부 = ?, 기술개발제품대상품목조회 = ?,
-      신제품인증NEP여부 = ?, 신제품인증NEP대상품목 = ?,
-      혁신제품여부 = ?, 집행구분 = ?, 메모 = ?,
-      updated_at = datetime('now', 'localtime')
-    WHERE id = ? AND user_id = ?
-  `).run(
-    b.품목명 ?? '', b.구매구분 ?? '물품', Number(b.금액) || 0,
-    b.중소기업제품 ?? 'N', b.여성기업제품 ?? 'N', b.사회적기업 ?? 'N',
-    b.사회적협동조합제품여부 ?? 'N', b.장애인구매 ?? 'N',
-    b.장애인표준사업장여부 ?? 'N', b.중증장애인제품 ?? 'N',
-    b.창업기업제품 ?? 'N', b.친환경제품 ?? 'N', b.자활용사촌제품 ?? 'N',
-    b.시범구매여부 ?? 'N', b.기술개발제품대상품목조회 ?? 'N',
-    b.신제품인증NEP여부 ?? 'N', b.신제품인증NEP대상품목 ?? 'N',
-    b.혁신제품여부 ?? 'N', b.집행구분 ?? 'Y', b.메모 ?? '',
-    id, req.user.id,
-  );
+    await pool.query(`
+      UPDATE manual_purchases SET
+        품목명 = $1, 구매구분 = $2, 물품금액 = $3,
+        중소기업제품 = $4, 여성기업제품 = $5, 사회적기업 = $6,
+        사회적협동조합제품여부 = $7, 장애인구매 = $8, 장애인표준사업장여부 = $9,
+        중증장애인제품 = $10, 창업기업제품 = $11, 친환경제품 = $12,
+        자활용사촌제품 = $13, 시범구매여부 = $14, 기술개발제품대상품목조회 = $15,
+        신제품인증NEP여부 = $16, 신제품인증NEP대상품목 = $17,
+        혁신제품여부 = $18, 집행구분 = $19, 메모 = $20,
+        updated_at = NOW()
+      WHERE id = $21 AND dept_id = $22
+    `, [
+      b.품목명 ?? '', b.구매구분 ?? '물품', Number(b.물품금액) || 0,
+      b.중소기업제품 ?? 'N', b.여성기업제품 ?? 'N', b.사회적기업 ?? 'N',
+      b.사회적협동조합제품여부 ?? 'N', b.장애인구매 ?? 'N',
+      b.장애인표준사업장여부 ?? 'N', b.중증장애인제품 ?? 'N',
+      b.창업기업제품 ?? 'N', b.친환경제품 ?? 'N', b.자활용사촌제품 ?? 'N',
+      b.시범구매여부 ?? 'N', b.기술개발제품대상품목조회 ?? 'N',
+      b.신제품인증NEP여부 ?? 'N', b.신제품인증NEP대상품목 ?? 'N',
+      b.혁신제품여부 ?? 'N', b.집행구분 ?? 'Y', b.메모 ?? '',
+      id, deptId,
+    ]);
 
-  res.json({ ok: true });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // ── DELETE /api/purchases/manual/:id ─────────────────────────────────────────
 
-router.delete('/manual/:id', auth, (req, res) => {
-  const id = Number(req.params.id);
-  const { changes } = db.prepare('DELETE FROM manual_purchases WHERE id = ? AND user_id = ?').run(id, req.user.id);
-  if (!changes) return res.status(404).json({ message: '항목을 찾을 수 없습니다.' });
-  res.json({ ok: true });
+router.delete('/manual/:id', auth, async (req, res, next) => {
+  try {
+    const id     = Number(req.params.id);
+    const deptId = req.body.deptId;
+    if (!deptId) return res.status(400).json({ message: 'deptId가 필요합니다.' });
+
+    const { rowCount } = await pool.query(
+      'DELETE FROM manual_purchases WHERE id = $1 AND dept_id = $2',
+      [id, deptId],
+    );
+    if (!rowCount) return res.status(404).json({ message: '항목을 찾을 수 없습니다.' });
+
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // ── DELETE /api/purchases/reset ───────────────────────────────────────────────
 
-router.delete('/reset', auth, (req, res) => {
-  const userId = req.user.id;
-  db.exec('BEGIN');
+router.delete('/reset', auth, async (req, res, next) => {
+  const client = await pool.connect();
   try {
-    db.prepare('DELETE FROM raw_purchases    WHERE user_id = ?').run(userId);
-    db.prepare('DELETE FROM manual_purchases WHERE user_id = ?').run(userId);
-    db.exec('COMMIT');
+    const deptId = req.body.deptId;
+    if (!deptId) return res.status(400).json({ message: 'deptId가 필요합니다.' });
+
+    await client.query('BEGIN');
+    await client.query('DELETE FROM raw_purchases    WHERE dept_id = $1', [deptId]);
+    await client.query('DELETE FROM manual_purchases WHERE dept_id = $1', [deptId]);
+    await client.query('COMMIT');
+
+    res.json({ ok: true });
   } catch (err) {
-    db.exec('ROLLBACK');
-    throw err;
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
   }
-  res.json({ ok: true });
 });
 
 module.exports = router;
