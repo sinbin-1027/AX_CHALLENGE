@@ -80,7 +80,7 @@ function rowToDraft(row) {
 }
 
 // ── 편집 패널 ────────────────────────────────────────────────────────────────
-function EditPanel({ mode, draft, selectedRow, onChange, onToggleFlag, onConfirm, onCancel }) {
+function EditPanel({ mode, draft, selectedRow, onChange, onToggleFlag, onConfirm, onCancel, onDelete }) {
   if (mode === 'idle') {
     return (
       <div style={F.idlePanel}>
@@ -151,6 +151,9 @@ function EditPanel({ mode, draft, selectedRow, onChange, onToggleFlag, onConfirm
       </div>
       <div style={F.actions}>
         <button type="button" onClick={onCancel} style={F.cancelBtn}>취소</button>
+        {!isAdd && (
+          <button type="button" onClick={onDelete} style={F.deleteBtn}>🗑 삭제</button>
+        )}
         <button type="button" onClick={onConfirm} style={F.saveBtn}>{isAdd ? '추가' : '저장'}</button>
       </div>
     </div>
@@ -235,7 +238,7 @@ function Toast({ message }) {
 }
 
 // ── 메인 페이지 ──────────────────────────────────────────────────────────────
-export default function DetailsPage({ rows, excludedSet: excludedSetProp = new Set(), onSave, onReset, onRefresh, onRowUpdate }) {
+export default function DetailsPage({ rows, excludedSet: excludedSetProp = new Set(), onSave, onReset, onRefresh, onRowUpdate, onRowDelete }) {
   const [excludedSet, setExcludedSet]   = useState(new Set());
   const [localNewRows, setLocalNewRows] = useState([]);
   const [sortConfig, setSortConfig]     = useState({ key: null, direction: null });
@@ -309,6 +312,17 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
     if (selectedRow?.__id === id) handleClosePanel();
   };
 
+  const handlePanelDelete = () => {
+    if (!selectedRow) return;
+    if (!window.confirm('이 행을 삭제할까요?')) return;
+    if (selectedRow.__isNew) {
+      setLocalNewRows(prev => prev.filter(r => r.__id !== selectedRow.__id));
+    } else {
+      onRowDelete?.(selectedRow);
+    }
+    handleClosePanel();
+  };
+
   const handleSave = () => {
     console.log('DetailsPage handleSave — localNewRows:', localNewRows);
     if (onSave) onSave(excludedSet, localNewRows);
@@ -371,7 +385,7 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
             <div style={P.pageSub}>
               전체 {allRows.length.toLocaleString()}건 · {KRW(total)}
               {excludedSet.size > 0 && (
-                <span style={P.excludeBadge}>제외 {excludedSet.size}건 ({KRW(excludedTotal)})</span>
+                <span style={P.excludeBadge}>모수 제외 {excludedSet.size}건 ({KRW(excludedTotal)})</span>
               )}
               {localNewRows.length > 0 && (
                 <span style={P.newBadge}>미저장 {localNewRows.length}건</span>
@@ -394,11 +408,12 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
           onToggleFlag={handlePanelToggleFlag}
           onConfirm={panelMode === 'add' ? handlePanelAdd : handlePanelSave}
           onCancel={handleClosePanel}
+          onDelete={handlePanelDelete}
         />
 
         <div style={P.legend}>
           <span><span style={{ ...P.dot, background: '#EFF6FF', border: '1px solid #93c5fd' }} />선택된 행</span>
-          <span><span style={{ ...P.dot, background: '#fff2f0', border: '1px solid #ffa39e' }} />제외된 행</span>
+          <span><span style={{ ...P.dot, background: '#fff2f0', border: '1px solid #ffa39e' }} />모수 제외된 행</span>
           <span><span style={{ ...P.dot, background: '#fffbe6', border: '1px solid #ffd666' }} />미저장 새 행</span>
           <span style={{ color: '#64748b', fontSize: 12 }}>행 클릭 → 패널에서 수정 · 체크박스로 제외 설정 후 [저장]</span>
         </div>
@@ -410,7 +425,7 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
           <table style={P.table}>
             <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
               <tr style={{ background: '#F9FAFB' }}>
-                <th style={{ ...P.th, width: 40, textAlign: 'center' }}>제외</th>
+                <th style={{ ...P.th, width: 40, textAlign: 'center' }}>모수 제외</th>
                 <th style={{ ...P.th, width: 36, textAlign: 'center' }}>No.</th>
                 {TABLE_COLS.map(c => {
                   const sortable = SORTABLE_KEYS.has(c.key);
@@ -510,6 +525,7 @@ const F = {
   flagItem:  { fontSize: 12, color: '#191F28', display: 'flex', alignItems: 'center', cursor: 'pointer' },
   actions:   { display: 'flex', justifyContent: 'flex-end', gap: 10 },
   cancelBtn: { padding: '7px 16px', background: '#FFFFFF', border: '1px solid #F2F4F6', borderRadius: 8, fontSize: 13, cursor: 'pointer', color: '#8B95A1' },
+  deleteBtn: { padding: '7px 16px', background: '#FFF0F1', border: '1px solid #FFCDD0', borderRadius: 8, fontSize: 13, cursor: 'pointer', color: '#F04452', fontWeight: 600 },
   saveBtn:   { padding: '7px 20px', background: '#3182F6', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' },
   closeBtnX: { padding: '4px 9px', border: 'none', background: '#F2F4F6', borderRadius: 6, cursor: 'pointer', fontSize: 13, color: '#8B95A1', lineHeight: 1 },
 };

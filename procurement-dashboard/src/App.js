@@ -23,6 +23,7 @@ function AppLayout() {
   const [manualRowsMap, setManualRowsMap]         = useState({});  // { deptId: rows[] }
   const [vendorRegistry, setVendorRegistry]       = useState([]);  // 업체 목록 (로컬)
   const [rowEditsMap, setRowEditsMap]             = useState({});  // { deptId: { 결의번호: {...} } }
+  const [deletedNosMap, setDeletedNosMap]         = useState({});  // { deptId: Set<결의번호> }
 
   const handleDeptChange = (e) => setDeptId(e.target.value);
 
@@ -84,12 +85,29 @@ function AppLayout() {
     setShowUploadModal(false);
   };
 
-  // DetailsPage 초기화 콜백 — 현재 부서의 업로드/수기/제외/수정 전부 리셋 (데모 유지)
+  // DetailsPage 초기화 콜백 — 현재 부서의 업로드/수기/제외/수정/삭제 전부 리셋 (데모 유지)
   const handleReset = () => {
     setUploadedRowsMap(prev => ({ ...prev, [deptId]: [] }));
     setManualRowsMap(prev   => ({ ...prev, [deptId]: [] }));
     setExcludedSetMap(prev  => ({ ...prev, [deptId]: new Set() }));
     setRowEditsMap(prev     => ({ ...prev, [deptId]: {} }));
+    setDeletedNosMap(prev   => ({ ...prev, [deptId]: new Set() }));
+  };
+
+  // 행 삭제 콜백
+  const handleRowDelete = (row) => {
+    if (row.__source === 'raw') {
+      setDeletedNosMap(prev => {
+        const next = new Set(prev[deptId] ?? []);
+        next.add(row.__결의번호);
+        return { ...prev, [deptId]: next };
+      });
+    } else if (row.__source === 'manual') {
+      setManualRowsMap(prev => ({
+        ...prev,
+        [deptId]: (prev[deptId] ?? []).filter(r => r.__id !== row.__id),
+      }));
+    }
   };
 
   // DetailsPage 저장 콜백 — excludedSet 반영 + 수동행 추가
@@ -127,6 +145,7 @@ function AppLayout() {
     const uploadedRows = uploadedRowsMap[deptId] ?? [];
     const manualRows   = (manualRowsMap[deptId] ?? []).map(r => ({ ...r, __source: 'manual' }));
     const currentExcludedSet = excludedSetMap[deptId] ?? new Set();
+    const deletedNos         = deletedNosMap[deptId]  ?? new Set();
 
     const demoNos = new Set(demoRows.map(r => r['결의번호']));
     const newRows = uploadedRows.filter(r => !demoNos.has(r['결의번호']));
@@ -136,7 +155,8 @@ function AppLayout() {
     const rawRows = [
       ...demoRows.map((r, i) => ({ ...r, __결의번호: String(r['결의번호'] ?? `${deptId}_d${i}`) })),
       ...newRows.map(r       => ({ ...r, __결의번호: String(r['결의번호'] ?? '')              })),
-    ].map(r => ({
+    ].filter(r => !deletedNos.has(r.__결의번호))
+    .map(r => ({
       ...r,
       ...(edits[r.__결의번호] ?? {}),
       __source: 'raw',
@@ -168,7 +188,7 @@ function AppLayout() {
     }
 
     return { activeRows, newRowCount: newRows.length, result };
-  }, [uploadedRowsMap, excludedSetMap, manualRowsMap, rowEditsMap, deptId]);
+  }, [uploadedRowsMap, excludedSetMap, manualRowsMap, rowEditsMap, deletedNosMap, deptId]);
 
   const selectedDept        = DEPARTMENTS.find(d => d.id === deptId);
   const selectedGroupConfig = DEPT_GROUP_CONFIGS[selectedDept?.group];
@@ -235,6 +255,7 @@ function AppLayout() {
                 onReset={handleReset}
                 onRefresh={() => {}}
                 onRowUpdate={handleRowUpdate}
+                onRowDelete={handleRowDelete}
               />
             } />
 
