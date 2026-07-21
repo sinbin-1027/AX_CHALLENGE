@@ -184,11 +184,11 @@ export default function IndicatorDetailPage({ rows = [], results = [], isYeonsoo
               <tr>
                 <th style={{ ...S.th, width: 44, textAlign: 'center' }}>순번</th>
                 <th style={S.th}>결의번호</th>
+                <th style={S.th}>구매유형</th>
+                <th style={{ ...S.th, maxWidth: 160 }}>구매처</th>
                 <th style={{ ...S.th, maxWidth: 220 }}>적요</th>
-                <th style={S.th}>구매구분</th>
+                <th style={{ ...S.th, maxWidth: 180 }}>예산명</th>
                 <th style={{ ...S.th, textAlign: 'right' }}>금액</th>
-                <th style={{ ...S.th, minWidth: 120 }}>인증구분</th>
-                <th style={{ ...S.th, textAlign: 'center', width: 72 }}>제외여부</th>
               </tr>
             </thead>
             <tbody>
@@ -199,45 +199,33 @@ export default function IndicatorDetailPage({ rows = [], results = [], isYeonsoo
                   </td>
                 </tr>
               )}
-              {filteredRows.map((row, i) => {
-                const excluded = (row['제외여부'] ?? 0) === 1;
-                const badges   = getRowBadges(row);
-                const textStyle = excluded
-                  ? { textDecoration: 'line-through', color: '#B0B8C1' }
-                  : { color: '#191F28' };
-
-                return (
-                  <tr
-                    key={row.__결의번호 ?? `r-${i}`}
-                    style={{ background: excluded ? '#FFF5F5' : i % 2 === 0 ? '#fff' : '#F9FAFB' }}
-                  >
-                    <td style={{ ...S.td, textAlign: 'center', color: '#8B95A1' }}>{i + 1}</td>
-                    <td style={{ ...S.td, ...textStyle, fontVariantNumeric: 'tabular-nums' }}>
-                      {row.__결의번호 || row['결의번호'] || '-'}
-                    </td>
-                    <td style={{ ...S.td, ...textStyle, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis' }}
-                      title={row['적요']}>
-                      {row['적요'] || '-'}
-                    </td>
-                    <td style={{ ...S.td, ...textStyle }}>{row['구매구분'] || '-'}</td>
-                    <td style={{ ...S.td, ...textStyle, textAlign: 'right', fontWeight: 600 }}>
-                      {KRW(row['물품금액'])}
-                    </td>
-                    <td style={{ ...S.td }}>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                        {badges.map(b => <CertBadge key={b.key} label={b.label} color={b.color} bg={b.bg} />)}
-                      </div>
-                    </td>
-                    <td style={{ ...S.td, textAlign: 'center' }}>
-                      {excluded ? (
-                        <span style={{ fontSize: 11, fontWeight: 700, color: '#F04452', background: '#FFF0F1', padding: '2px 8px', borderRadius: 99 }}>제외</span>
-                      ) : (
-                        <span style={{ fontSize: 11, color: '#D1D6DB' }}>-</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+              {filteredRows.map((row, i) => (
+                <tr
+                  key={row.__결의번호 ?? `r-${i}`}
+                  style={{ background: i % 2 === 0 ? '#fff' : '#F9FAFB' }}
+                >
+                  <td style={{ ...S.td, textAlign: 'center', color: '#8B95A1' }}>{i + 1}</td>
+                  <td style={{ ...S.td, fontVariantNumeric: 'tabular-nums' }}>
+                    {row.__결의번호 || row['결의번호'] || '-'}
+                  </td>
+                  <td style={S.td}>{row['구매구분'] || '-'}</td>
+                  <td style={{ ...S.td, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis' }}
+                    title={row['수령인사업자명']}>
+                    {row['수령인사업자명'] || '-'}
+                  </td>
+                  <td style={{ ...S.td, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis' }}
+                    title={row['적요']}>
+                    {row['적요'] || '-'}
+                  </td>
+                  <td style={{ ...S.td, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}
+                    title={row['예산명']}>
+                    {row['예산명'] || '-'}
+                  </td>
+                  <td style={{ ...S.td, textAlign: 'right', fontWeight: 600 }}>
+                    {KRW(row['물품금액'])}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

@@ -203,9 +203,7 @@ function AppLayout({ onLogout }) {
               />
             } />
 
-            <Route path="/simulation/current"  element={<ComingSoon title="현재 달성률" />} />
-            <Route path="/simulation/trend"    element={<ComingSoon title="추이 분석" />} />
-            <Route path="/simulation/simulate" element={
+            <Route path="/procurement/simulation" element={
               <SimulationPage
                 rows={activeRows}
                 results={result?.results ?? []}
@@ -213,17 +211,25 @@ function AppLayout({ onLogout }) {
                 maxScore={selectedDept?.score_weight}
               />
             } />
+            <Route path="/procurement/vendors" element={<VendorRecommend insufficientKeys={(result?.results ?? []).filter(r => !r.achieved).map(r => r.key)} />} />
 
-            <Route path="/ai/guide"       element={<ComingSoon title="AI 집행가이드" />} />
-            <Route path="/ai/regulations" element={<ComingSoon title="규정/가이드" />} />
+            <Route path="/regulations" element={<ComingSoon title="규정/가이드" />} />
 
-            <Route path="/data/uploads"   element={<ComingSoon title="업로드 기록" />} />
-            <Route path="/data/vendors"   element={<VendorList />} />
-            <Route path="/data/recommend" element={<VendorRecommend insufficientKeys={(result?.results ?? []).filter(r => !r.achieved).map(r => r.key)} />} />
+            <Route path="/budget/trend" element={<ComingSoon title="집행 추이 분석" />} />
 
-            <Route path="/details"     element={<Navigate to="/procurement/register" replace />} />
-            <Route path="/vendors"     element={<Navigate to="/data/recommend" replace />} />
-            <Route path="/vendor-list" element={<Navigate to="/data/vendors" replace />} />
+            <Route path="/data/uploads"  element={<ComingSoon title="업로드 기록" />} />
+            <Route path="/data/vendors"  element={<VendorList />} />
+
+            {/* 구 경로 리다이렉트 */}
+            <Route path="/simulation/simulate" element={<Navigate to="/procurement/simulation" replace />} />
+            <Route path="/simulation/current"  element={<Navigate to="/procurement/simulation" replace />} />
+            <Route path="/simulation/trend"    element={<Navigate to="/budget/trend" replace />} />
+            <Route path="/data/recommend"      element={<Navigate to="/procurement/vendors" replace />} />
+            <Route path="/ai/regulations"      element={<Navigate to="/regulations" replace />} />
+            <Route path="/ai/guide"            element={<Navigate to="/regulations" replace />} />
+            <Route path="/details"             element={<Navigate to="/procurement/register" replace />} />
+            <Route path="/vendors"             element={<Navigate to="/procurement/vendors" replace />} />
+            <Route path="/vendor-list"         element={<Navigate to="/data/vendors" replace />} />
           </Routes>
         </div>
       </div>

@@ -11,10 +11,11 @@ const NAV = [
   {
     key: 'budget',
     icon: '📊',
-    label: '예산현황',
+    label: '예산관리',
     children: [
-      { key: 'budget-alloc', label: '예산 배정액', path: '/budget/allocation' },
-      { key: 'budget-exec',  label: '예산 집행액', path: '/budget/execution' },
+      { key: 'budget-alloc',  label: '예산 배정 현황', path: '/budget/allocation' },
+      { key: 'budget-exec',   label: '예산 집행 현황', path: '/budget/execution'  },
+      { key: 'budget-trend',  label: '집행 추이 분석', path: '/budget/trend'      },
     ],
   },
   {
@@ -25,35 +26,23 @@ const NAV = [
       { key: 'proc-indicators', label: '지표 현황',           path: '/procurement/indicators' },
       { key: 'proc-details',    label: '지표별 실적 상세',     path: '/procurement/details'    },
       { key: 'proc-register',   label: '실적 등록(수기등록)', path: '/procurement/register'   },
+      { key: 'proc-simulation', label: '공공구매 시뮬레이션', path: '/procurement/simulation' },
+      { key: 'proc-vendors',    label: '인증 보유 업체 검색', path: '/procurement/vendors'    },
     ],
   },
   {
-    key: 'simulation',
-    icon: '🎯',
-    label: '시뮬레이션',
-    children: [
-      { key: 'sim-current',  label: '현재 달성률',     path: '/simulation/current'  },
-      { key: 'sim-trend',    label: '추이 분석',       path: '/simulation/trend'    },
-      { key: 'sim-simulate', label: '실적 시뮬레이션', path: '/simulation/simulate' },
-    ],
-  },
-  {
-    key: 'ai',
-    icon: '🤖',
-    label: 'AI분석/지원',
-    children: [
-      { key: 'ai-guide',       label: 'AI 집행가이드', path: '/ai/guide'       },
-      { key: 'ai-regulations', label: '규정/가이드',   path: '/ai/regulations' },
-    ],
+    key: 'regulations',
+    icon: '📖',
+    label: '규정/가이드',
+    path: '/regulations',
   },
   {
     key: 'data',
     icon: '🗂️',
     label: '데이터 관리',
     children: [
-      { key: 'data-uploads',   label: '업로드 기록', path: '/data/uploads'   },
-      { key: 'data-vendors',   label: '업체 관리',   path: '/data/vendors'   },
-      { key: 'data-recommend', label: '업체 추천',   path: '/data/recommend' },
+      { key: 'data-uploads',  label: '업로드 기록',       path: '/data/uploads'  },
+      { key: 'data-vendors',  label: '인증 보유 업체 관리', path: '/data/vendors'  },
     ],
   },
 ];
@@ -94,7 +83,7 @@ export default function Sidebar() {
       {/* 로고 */}
       <div style={S.logo}>
         <span style={S.logoIcon}>🏛</span>
-        {!collapsed && <span style={S.logoText}>공공구매 관리시스템</span>}
+        {!collapsed && <span style={S.logoText}>KOSME 예산 관리 시스템</span>}
       </div>
 
       {/* 네비게이션 */}

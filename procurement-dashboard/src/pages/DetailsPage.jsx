@@ -34,14 +34,15 @@ const toDateInput = (v) => {
 };
 
 const TABLE_COLS = [
-  { key: '집행구분',       label: '집행구분',  align: 'center' },
-  { key: '결의번호',       label: '결의번호',  align: 'left'   },
-  { key: '발의일자',       label: '발의일자',  align: 'left',  fmt: fmtDate },
-  { key: '구매구분',       label: '구매구분',  align: 'left'   },
-  { key: '적요',           label: '적요',      align: 'left',  maxWidth: 200 },
-  { key: '수령인사업자명', label: '거래처',    align: 'left',  maxWidth: 160 },
-  { key: '발주품목명',     label: '품목명',    align: 'left',  maxWidth: 160 },
-  { key: '물품금액',       label: '금액',      align: 'right'  },
+  { key: '집행구분',       label: '집행구분',  align: 'center'               },
+  { key: '결의번호',       label: '결의번호',  align: 'left'                  },
+  { key: '발의일자',       label: '발의일자',  align: 'left',  fmt: fmtDate   },
+  { key: '구매구분',       label: '구매유형',  align: 'left'                  },
+  { key: '수령인사업자명', label: '구매처',    align: 'left',  maxWidth: 160  },
+  { key: '적요',           label: '적요',      align: 'left',  maxWidth: 200  },
+  { key: '발주품목명',     label: '품목명',    align: 'left',  maxWidth: 160  },
+  { key: '예산명',         label: '예산명',    align: 'left',  maxWidth: 180  },
+  { key: '물품금액',       label: '금액',      align: 'right'                 },
 ];
 
 const FLAGS = [
@@ -119,7 +120,7 @@ function EditPanel({ mode, draft, selectedRow, onChange, onToggleFlag, onConfirm
       <div style={F.grid}>
         {[
           { key: '발의일자',       label: '발의일자',  type: 'date'   },
-          { key: '수령인사업자명', label: '거래처',    type: 'text'   },
+          { key: '수령인사업자명', label: '구매처',    type: 'text'   },
           { key: '발주품목명',     label: '품목명',    type: 'text'   },
           { key: '적요',           label: '적요',      type: 'text'   },
           { key: '물품금액',       label: '금액 (원)', type: 'number' },
@@ -136,7 +137,7 @@ function EditPanel({ mode, draft, selectedRow, onChange, onToggleFlag, onConfirm
           </div>
         ))}
         <div style={F.field}>
-          <label style={F.label}>구매구분</label>
+          <label style={F.label}>구매유형</label>
           <select value={draft['구매구분'] ?? '물품'} onChange={e => onChange('구매구분', e.target.value)} style={F.input}>
             {CATEGORIES.map(c => <option key={c}>{c}</option>)}
           </select>
@@ -498,7 +499,7 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
             <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
               <tr style={{ background: '#F9FAFB' }}>
                 <th style={{ ...P.th, width: 40, textAlign: 'center' }}>모수 제외</th>
-                <th style={{ ...P.th, width: 36, textAlign: 'center' }}>No.</th>
+                <th style={{ ...P.th, width: 36, textAlign: 'center' }}>순번</th>
                 {TABLE_COLS.map(c => {
                   const sortable = SORTABLE_KEYS.has(c.key);
                   const active   = sortConfig.key === c.key;

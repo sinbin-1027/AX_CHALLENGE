@@ -276,7 +276,7 @@ const S = {
 
 const M = {
   overlay:      { position: 'fixed', inset: 0, background: 'rgba(25,31,40,0.48)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  panel:        { background: '#FFFFFF', borderRadius: 20, width: 520, maxWidth: '92vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,0.14)' },
+  panel:        { background: '#FFFFFF', borderRadius: 16, width: 520, maxWidth: '92vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,0.14)' },
   header:       { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '22px 24px 18px', borderBottom: '1px solid #F2F4F6' },
   name:         { fontSize: 18, fontWeight: 800, color: '#191F28', letterSpacing: '-0.4px' },
   biz:          { fontSize: 13, color: '#8B95A1', marginTop: 4 },
