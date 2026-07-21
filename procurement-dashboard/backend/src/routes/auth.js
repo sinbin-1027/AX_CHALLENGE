@@ -1,60 +1,46 @@
-const express  = require('express');
-const bcrypt   = require('bcryptjs');
-const jwt      = require('jsonwebtoken');
-const db       = require('../db/database');
+const express = require('express');
 
 const router = express.Router();
 
-// POST /api/auth/register
-router.post('/register', (req, res) => {
-  const { username, password, department } = req.body;
+const GUEST = { username: 'guest', password: 'guest1234' };
 
-  if (!username || !password) {
-    return res.status(400).json({ message: '아이디와 비밀번호를 입력하세요.' });
-  }
-  if (password.length < 6) {
-    return res.status(400).json({ message: '비밀번호는 6자 이상이어야 합니다.' });
-  }
-
-  const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
-  if (existing) {
-    return res.status(409).json({ message: '이미 사용 중인 아이디입니다.' });
-  }
-
-  const hashed = bcrypt.hashSync(password, 10);
-  const { lastInsertRowid } = db
-    .prepare('INSERT INTO users (username, password, department) VALUES (?, ?, ?)')
-    .run(username, hashed, department ?? null);
-
-  const token = jwt.sign(
-    { id: lastInsertRowid, username },
-    process.env.JWT_SECRET,
-    { expiresIn: '8h' },
-  );
-
-  res.status(201).json({ token, username, department: department ?? null });
-});
+function initTempData() {
+  return {
+    uploadedRows: {},  // deptId: rows[]
+    manualRows:   {},  // deptId: rows[]
+    excludedNos:  {},  // deptId: string[]
+    rowEdits:     {},  // deptId: { 결의번호: { 컬럼명: 수정값 } }
+    deletedNos:   {},  // deptId: string[]
+  };
+}
 
 // POST /api/auth/login
 router.post('/login', (req, res) => {
-  const { username, password } = req.body;
+  const { username, password } = req.body ?? {};
 
-  if (!username || !password) {
-    return res.status(400).json({ message: '아이디와 비밀번호를 입력하세요.' });
-  }
-
-  const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
-  if (!user || !bcrypt.compareSync(password, user.password)) {
+  if (username !== GUEST.username || password !== GUEST.password) {
     return res.status(401).json({ message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
   }
 
-  const token = jwt.sign(
-    { id: user.id, username: user.username },
-    process.env.JWT_SECRET,
-    { expiresIn: '8h' },
-  );
+  req.session.isLoggedIn = true;
+  req.session.tempData   = initTempData();
 
-  res.json({ token, username: user.username, department: user.department });
+  res.json({ ok: true, username });
+});
+
+// POST /api/auth/logout
+router.post('/logout', (req, res) => {
+  req.session.destroy(err => {
+    if (err) return res.status(500).json({ message: '로그아웃 실패' });
+    res.clearCookie('connect.sid');
+    res.json({ ok: true });
+  });
+});
+
+// GET /api/auth/check
+router.get('/check', (req, res) => {
+  if (req.session?.isLoggedIn) return res.json({ ok: true, username: GUEST.username });
+  res.status(401).json({ message: '로그인이 필요합니다.' });
 });
 
 module.exports = router;

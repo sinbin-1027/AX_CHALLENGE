@@ -1,12 +1,14 @@
 import { useState, useRef, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 
+const API_BASE = process.env.REACT_APP_API_URL ?? '';
+
 const SHEET_NAME = 'RAW';
 const EXCLUDED_BUDGET_KEYWORDS = ['업무추진비', '부운영비', '기타운영비', '특근매식비'];
 
-export default function FileUpload({ onDataLoad }) {
+export default function FileUpload({ deptId, onDataLoad }) {
   const [dragging, setDragging] = useState(false);
-  const [status, setStatus]     = useState('idle'); // idle | parsing | done | error
+  const [status, setStatus]     = useState('idle'); // idle | parsing | uploading | done | error
   const [fileInfo, setFileInfo] = useState(null);
   const [error, setError]       = useState(null);
   const inputRef = useRef(null);
@@ -51,10 +53,29 @@ export default function FileUpload({ onDataLoad }) {
 
     const excluded = rows._excluded ?? 0;
     const total    = rows.length + excluded;
-    setFileInfo({ name: file.name, total, excluded, count: rows.length });
-    setStatus('done');
-    onDataLoad(rows);
-  }, [onDataLoad]);
+
+    // 2. 서버 업로드
+    setStatus('uploading');
+    try {
+      const res = await fetch(`${API_BASE}/api/purchases/upload`, {
+        method:      'POST',
+        credentials: 'include',
+        headers:     { 'Content-Type': 'application/json' },
+        body:        JSON.stringify({ deptId, rows }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message ?? '업로드 실패');
+      }
+      const result = await res.json();
+      setFileInfo({ name: file.name, total, excluded, count: rows.length, added: result.added, skipped: result.skipped });
+      setStatus('done');
+      onDataLoad(result);
+    } catch (err) {
+      setError(err.message || '업로드 중 오류가 발생했습니다.');
+      setStatus('error');
+    }
+  }, [deptId, onDataLoad]);
 
   const handleDrop     = useCallback((e) => { e.preventDefault(); setDragging(false); processFile(e.dataTransfer.files[0]); }, [processFile]);
   const handleDragOver  = (e) => { e.preventDefault(); setDragging(true); };
@@ -62,7 +83,7 @@ export default function FileUpload({ onDataLoad }) {
   const handleChange    = (e) => processFile(e.target.files[0]);
   const handleClick     = ()  => inputRef.current?.click();
 
-  const loading = status === 'parsing';
+  const loading = status === 'parsing' || status === 'uploading';
 
   return (
     <div style={styles.wrapper}>
@@ -78,7 +99,7 @@ export default function FileUpload({ onDataLoad }) {
         {loading ? (
           <div style={styles.status}>
             <span style={styles.spinner} />
-            <span>파일 분석 중...</span>
+            <span>{status === 'parsing' ? '파일 분석 중…' : '서버에 업로드 중…'}</span>
           </div>
         ) : fileInfo ? (
           <div style={styles.status}>
@@ -86,9 +107,11 @@ export default function FileUpload({ onDataLoad }) {
             <div>
               <div style={styles.fileName}>{fileInfo.name}</div>
               <div style={styles.rowCount}>
-                {fileInfo.excluded > 0
-                  ? `총 ${fileInfo.total.toLocaleString('ko-KR')}개 중 ${fileInfo.excluded.toLocaleString('ko-KR')}개 제외 → ${fileInfo.count.toLocaleString('ko-KR')}개 로드 완료`
-                  : `총 ${fileInfo.count.toLocaleString('ko-KR')}개 행 로드 완료`}
+                {fileInfo.added != null
+                  ? `${fileInfo.count.toLocaleString('ko-KR')}행 파싱 → 신규 ${fileInfo.added.toLocaleString('ko-KR')}건 저장 (중복 ${fileInfo.skipped.toLocaleString('ko-KR')}건 제외)`
+                  : fileInfo.excluded > 0
+                    ? `총 ${fileInfo.total.toLocaleString('ko-KR')}개 중 ${fileInfo.excluded.toLocaleString('ko-KR')}개 제외 → ${fileInfo.count.toLocaleString('ko-KR')}개 로드 완료`
+                    : `총 ${fileInfo.count.toLocaleString('ko-KR')}개 행 로드 완료`}
               </div>
             </div>
             <span style={styles.reupload}>다시 업로드</span>

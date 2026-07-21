@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ReferenceLine, Cell, ResponsiveContainer,
+  Tooltip, ReferenceLine, Cell, ResponsiveContainer, LabelList,
+  PieChart, Pie,
 } from 'recharts';
 
 // ── 포맷 ─────────────────────────────────────────────────────────────────────
@@ -41,27 +42,28 @@ function KpiCard({ icon, title, value, unit, sub, valueColor, onClick }) {
 
 // ── 지표별 목표액 모달 ────────────────────────────────────────────────────────
 const BASIS_TEXT = {
-  sme:                '총구매액 × 80%',
-  startup:            '총구매액 × 15%',
-  women_goods:        '물품구매액 × 5%',
-  women_service:      '용역구매액 × 5%',
-  women_construction: '공사구매액 × 3%',
+  sme:                '총구매액(물품+용역+공사) × 80%',
+  startup:            '총구매액(물품+용역+공사) × 15%',
+  women_goods:        '물품 구매액 × 5%',
+  women_service:      '용역 구매액 × 5%',
+  women_construction: '공사 구매액 × 3%',
   social_enterprise:  '(물품+용역) × 5%',
   cooperative:        '(물품+용역) × 0.1%',
-  disabled_enterprise:'총구매액 × 1%',
+  disabled_enterprise:'총구매액(물품+용역+공사) × 1%',
   standard_workshop:  '(물품+용역) × 0.8%',
   severe_disabled:    '(물품+용역) × 1.1%',
-  tech_development:   '중소기업물품 × 20%',
-  pilot_purchase:     '중소기업물품 × 1.5%',
-  nep:                'NEP대상품목 × 20%',
+  tech_development:   '중소기업 물품 구매액 × 20%',
+  pilot_purchase:     '중소기업 물품 구매액 × 1.5%',
+  nep:                'NEP 대상품목 구매액 × 20%',
   green_product:      '고정 목표액',
   jawal_veteran:      '고정 목표액',
   innovative_product: '(물품+용역) × 3%',
-  onnuri_voucher:     '부서인원 × 250,000원',
+  onnuri_voucher:     '부서인원(11월말) × 250,000원',
 };
 
 export function TargetModal({ results, onClose }) {
-  const total = results.reduce((s, r) => s + r.targetAmount, 0);
+  const total      = results.reduce((s, r) => s + r.targetAmount, 0);
+  const totalPoints = results.reduce((s, r) => s + (r.points ?? 0), 0);
   return (
     <div style={TM.overlay} onClick={onClose}>
       <div style={TM.panel} onClick={e => e.stopPropagation()}>
@@ -75,6 +77,7 @@ export function TargetModal({ results, onClose }) {
               <tr>
                 <th style={TM.th}>지표명</th>
                 <th style={TM.th}>목표액 산출기준</th>
+                <th style={{ ...TM.th, textAlign: 'center' }}>배점</th>
                 <th style={{ ...TM.th, textAlign: 'right' }}>목표액</th>
               </tr>
             </thead>
@@ -85,6 +88,9 @@ export function TargetModal({ results, onClose }) {
                   <td style={{ ...TM.td, color: COLOR.subtext, fontSize: 12 }}>
                     {BASIS_TEXT[r.key] ?? '-'}
                   </td>
+                  <td style={{ ...TM.td, textAlign: 'center', fontWeight: 700, color: '#3182F6' }}>
+                    {r.points != null ? `${r.points}점` : '-'}
+                  </td>
                   <td style={{ ...TM.td, textAlign: 'right', fontWeight: 600 }}>
                     {r.targetAmount > 0 ? KRW(r.targetAmount) : '-'}
                   </td>
@@ -94,6 +100,9 @@ export function TargetModal({ results, onClose }) {
             <tfoot>
               <tr style={{ background: '#f0f4f8', fontWeight: 700 }}>
                 <td style={TM.td} colSpan={2}>합계</td>
+                <td style={{ ...TM.td, textAlign: 'center', fontWeight: 700, color: '#3182F6' }}>
+                  총 {totalPoints.toFixed(1)}점
+                </td>
                 <td style={{ ...TM.td, textAlign: 'right', color: COLOR.primary }}>{KRW(total)}</td>
               </tr>
             </tfoot>
@@ -105,8 +114,8 @@ export function TargetModal({ results, onClose }) {
 }
 
 const TM = {
-  overlay: { position: 'fixed', inset: 0, background: 'rgba(25,31,40,0.48)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  panel:   { background: '#FFFFFF', borderRadius: 20, width: 600, maxWidth: '90vw', maxHeight: '82vh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,0.14)' },
+  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' },
+  panel:   { background: '#FFFFFF', borderRadius: 16, width: 600, maxWidth: '90vw', maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.14)' },
   header:  { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #F2F4F6', flexShrink: 0 },
   title:   { fontSize: 16, fontWeight: 700, color: COLOR.text, letterSpacing: '-0.3px' },
   closeBtn:{ background: 'none', border: 'none', fontSize: 18, color: COLOR.subtext, cursor: 'pointer', padding: '2px 6px', borderRadius: 8 },
@@ -119,8 +128,8 @@ const TM = {
 // ── 지출 상세 모달 ────────────────────────────────────────────────────────────
 const DETAIL_COLS = [
   { key: '결의번호',        label: '결의번호',    align: 'left'  },
-  { key: '구매구분',        label: '구매구분',    align: 'left'  },
-  { key: '수령인사업자명',  label: '거래처',      align: 'left'  },
+  { key: '구매구분',        label: '구매유형',    align: 'left'  },
+  { key: '수령인사업자명',  label: '구매처',      align: 'left'  },
   { key: '적요',            label: '적요',        align: 'left'  },
   { key: '예산명',          label: '예산명',      align: 'left'  },
   { key: '물품금액',        label: '금액',        align: 'right' },
@@ -227,8 +236,8 @@ function AchievedModal({ achieved, onClose }) {
 }
 
 const AM = {
-  overlay: { position: 'fixed', inset: 0, background: 'rgba(25,31,40,0.48)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  panel:   { background: '#FFFFFF', borderRadius: 20, width: 480, maxWidth: '90vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,0.14)' },
+  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' },
+  panel:   { background: '#FFFFFF', borderRadius: 16, width: 480, maxWidth: '90vw', maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.14)' },
   header:  { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #F2F4F6', flexShrink: 0 },
   title:   { fontSize: 16, fontWeight: 700, color: COLOR.text, letterSpacing: '-0.3px' },
   closeBtn:{ background: 'none', border: 'none', fontSize: 18, color: COLOR.subtext, cursor: 'pointer', padding: '2px 6px', borderRadius: 8 },
@@ -356,6 +365,108 @@ const AS = {
   divider:       { height: 1, background: COLOR.border, margin: '0 20px' },
   empty:         { fontSize: 13, color: COLOR.subtext, padding: '14px 0' },
 };
+
+// ── 우측 상단 패널: 도넛차트 + 달성/미달성 현황 ──────────────────────────────
+
+function RightTopPanel({ results }) {
+  const [showAchievedModal,    setShowAchievedModal]    = useState(false);
+  const [showNotAchievedModal, setShowNotAchievedModal] = useState(false);
+
+  const achieved    = [...results].filter(r => r.achieved).sort((a, b) => b.achievementRate - a.achievementRate);
+  const notAchieved = [...results]
+    .filter(r => !r.achieved && r.targetAmount > 0)
+    .sort((a, b) => (b.targetAmount - b.actual) - (a.targetAmount - a.actual));
+
+  const top3achieved    = achieved.slice(0, 3);
+  const top3notAchieved = notAchieved.slice(0, 3);
+
+  const pieData = [
+    { name: '달성',   value: Math.max(achieved.length, 0.001)    },
+    { name: '미달성', value: Math.max(notAchieved.length, 0.001) },
+  ];
+
+  return (
+    <div style={{ ...S.card, display: 'flex', flexDirection: 'column', height: '100%', padding: 0, overflow: 'hidden' }}>
+      {showAchievedModal    && <AchievedModal    achieved={achieved}       onClose={() => setShowAchievedModal(false)} />}
+      {showNotAchievedModal && <NotAchievedModal notAchieved={notAchieved} onClose={() => setShowNotAchievedModal(false)} />}
+
+      {/* 도넛차트 */}
+      <div style={{ padding: '20px 24px 16px', borderBottom: `1px solid ${COLOR.border}` }}>
+        <div style={{ position: 'relative', width: '100%', height: 200 }}>
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie
+                data={pieData}
+                innerRadius={60}
+                outerRadius={90}
+                dataKey="value"
+                startAngle={90}
+                endAngle={-270}
+                stroke="#fff"
+                strokeWidth={2}
+              >
+                <Cell fill={COLOR.success} />
+                <Cell fill={achieved.length === results.length ? '#d9f7ee' : COLOR.danger} />
+              </Pie>
+            </PieChart>
+          </ResponsiveContainer>
+          <div style={{
+            position: 'absolute', top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            textAlign: 'center', pointerEvents: 'none',
+          }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: COLOR.text, lineHeight: 1.2 }}>달성 {achieved.length}</div>
+            <div style={{ fontSize: 12, color: COLOR.subtext, marginTop: 4 }}>전체 {results.length}개</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 20, fontSize: 12, color: COLOR.subtext }}>
+          <span><span style={{ ...S.dot, background: COLOR.success }} />달성 {achieved.length}개</span>
+          <span><span style={{ ...S.dot, background: COLOR.danger }} />미달성 {notAchieved.length}개</span>
+        </div>
+      </div>
+
+      {/* 달성 지표 */}
+      <div style={AS.section}>
+        <div style={AS.sectionHeader}>
+          <span style={{ ...AS.sectionTitle, color: COLOR.success }}>✅ 달성 지표 ({achieved.length}개)</span>
+          {achieved.length > 3 && (
+            <button style={AS.moreBtn} onClick={() => setShowAchievedModal(true)}>더보기</button>
+          )}
+        </div>
+        {achieved.length === 0 && <div style={AS.empty}>아직 달성한 지표가 없습니다.</div>}
+        {top3achieved.map(r => (
+          <div key={r.key} style={AS.item}>
+            <span style={{ ...AS.badge, background: '#f6ffed', color: COLOR.success, border: '1px solid #b7eb8f' }}>✓</span>
+            <span style={AS.itemLabel}>{r.label}</span>
+            <span style={{ ...AS.itemRate, color: COLOR.success }}>{PCT(r.achievementRate)}</span>
+          </div>
+        ))}
+      </div>
+
+      <div style={AS.divider} />
+
+      {/* 미달성 지표 */}
+      <div style={{ ...AS.section, flex: 1 }}>
+        <div style={AS.sectionHeader}>
+          <span style={{ ...AS.sectionTitle, color: COLOR.danger }}>✗ 미달성 지표 ({notAchieved.length}개)</span>
+          {notAchieved.length > 3 && (
+            <button style={AS.moreBtn} onClick={() => setShowNotAchievedModal(true)}>더보기</button>
+          )}
+        </div>
+        {notAchieved.length === 0 && (
+          <div style={{ ...AS.empty, color: COLOR.success }}>🎉 모든 지표를 달성했습니다!</div>
+        )}
+        {top3notAchieved.map(r => (
+          <div key={r.key} style={AS.item}>
+            <span style={{ ...AS.badge, background: '#fff1f0', color: COLOR.danger, border: '1px solid #ffa39e' }}>✗</span>
+            <span style={AS.itemLabel}>{r.label}</span>
+            <span style={{ ...AS.itemRate, color: COLOR.danger }}>{PCT(r.achievementRate)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // ── 목표대비 상세현황 테이블 ─────────────────────────────────────────────────
 
@@ -535,8 +646,8 @@ const DT = {
   th:          { padding: '10px 14px', fontWeight: 600, color: COLOR.subtext, borderBottom: `1px solid ${COLOR.border}`, textAlign: 'left', background: '#F9FAFB', whiteSpace: 'nowrap', position: 'sticky', top: 0, fontSize: 12 },
   td:          { padding: '10px 14px', borderBottom: `1px solid ${COLOR.border}`, color: COLOR.text, whiteSpace: 'nowrap' },
   moreBtn:     { fontSize: 13, fontWeight: 600, color: COLOR.primary, background: '#EBF3FE', border: 'none', borderRadius: 8, padding: '6px 16px', cursor: 'pointer' },
-  overlay:     { position: 'fixed', inset: 0, background: 'rgba(25,31,40,0.48)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  modal:       { background: '#FFFFFF', borderRadius: 20, width: 860, maxWidth: '94vw', maxHeight: '82vh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,0.14)' },
+  overlay:     { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' },
+  modal:       { background: '#FFFFFF', borderRadius: 16, width: 860, maxWidth: '94vw', maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.14)' },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 22px', borderBottom: `1px solid ${COLOR.border}`, flexShrink: 0 },
   closeBtn:    { background: 'none', border: 'none', fontSize: 18, color: COLOR.subtext, cursor: 'pointer', padding: '2px 6px', borderRadius: 8 },
 };
@@ -625,15 +736,21 @@ export default function Dashboard({ results, totalScore, finalScore, stats, rows
   const scoreColor = finalScore >= 3 ? COLOR.success : finalScore >= 2 ? '#faad14' : COLOR.danger;
 
   // 바 차트 데이터
-  const chartData = results.map(r => ({
-    label:        r.label,
-    rate:         Math.min(+(r.achievementRate * 100).toFixed(1), 200),
-    rateLabel:    PCT(r.achievementRate),
-    achieved:     r.achieved,
-    targetAmount: r.targetAmount,
-    actual:       r.actual,
-    key:          r.key,
-  }));
+  const chartData = results.map(r => {
+    const rawRate = +(r.achievementRate * 100).toFixed(1);
+    const overflow = rawRate > 150;
+    return {
+      label:        r.label,
+      rate:         Math.min(rawRate, 150),
+      rawRate,
+      overflow,
+      rateLabel:    overflow ? '150%+' : PCT(r.achievementRate),
+      achieved:     r.achieved,
+      targetAmount: r.targetAmount,
+      actual:       r.actual,
+      key:          r.key,
+    };
+  });
 
 
   return (
@@ -680,22 +797,38 @@ export default function Dashboard({ results, totalScore, finalScore, stats, rows
         />
       </div>
 
-      {/* ── 중단: 바 차트 + 목표대비 상세현황 ── */}
+      {/* ── 상단 2열: 바차트 + 도넛/달성현황 ── */}
       <div style={{ display: 'flex', gap: 20, alignItems: 'stretch', marginBottom: 20 }}>
 
-        {/* 왼쪽 50%: 바 차트 */}
+        {/* 좌측 50%: 바 차트 */}
         <div style={{ ...S.card, flex: 1, display: 'flex', flexDirection: 'column' }}>
           <div style={S.cardTitle}>유형별 목표 대비 달성률</div>
           <div style={{ display: 'flex', gap: 16, fontSize: 12, color: COLOR.subtext, marginBottom: 12 }}>
             <span><span style={{ ...S.dot, background: COLOR.success }} />달성</span>
             <span><span style={{ ...S.dot, background: COLOR.danger }} />미달성</span>
-            <span style={{ color: COLOR.subtext }}>— 100% 목표선</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <svg width="18" height="2" style={{ verticalAlign: 'middle' }}>
+                <line x1="0" y1="1" x2="18" y2="1" stroke={COLOR.subtext} strokeWidth="1.5" strokeDasharray="4 2" />
+              </svg>
+              100% 목표선
+            </span>
           </div>
           <div style={{ flex: 1 }}>
             <ResponsiveContainer width="100%" height={520}>
-              <BarChart data={chartData} layout="vertical" margin={{ left: 4, right: 36, top: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#F2F4F6" />
+              <BarChart data={chartData} margin={{ left: 4, right: 8, top: 16, bottom: 60 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F2F4F6" />
                 <XAxis
+                  type="category"
+                  dataKey="label"
+                  tick={{ fontSize: 11, fill: COLOR.text }}
+                  axisLine={false}
+                  tickLine={false}
+                  angle={-40}
+                  textAnchor="end"
+                  interval={0}
+                  height={70}
+                />
+                <YAxis
                   type="number"
                   domain={[0, 150]}
                   tickFormatter={v => `${v}%`}
@@ -703,45 +836,55 @@ export default function Dashboard({ results, totalScore, finalScore, stats, rows
                   tickCount={7}
                   axisLine={false}
                   tickLine={false}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="label"
-                  width={84}
-                  tick={{ fontSize: 12, fill: COLOR.text }}
-                  axisLine={false}
-                  tickLine={false}
+                  width={44}
                 />
                 <Tooltip content={<ChartTooltip />} cursor={{ fill: '#F9FAFB' }} />
-                <ReferenceLine x={100} stroke={COLOR.subtext} strokeDasharray="5 3" strokeWidth={1.5} />
-                <Bar dataKey="rate" radius={[0, 4, 4, 0]} maxBarSize={16}>
+                <ReferenceLine y={100} stroke={COLOR.subtext} strokeDasharray="5 3" strokeWidth={1.5} />
+                <Bar dataKey="rate" radius={[4, 4, 0, 0]} maxBarSize={40}>
                   {chartData.map(d => (
                     <Cell key={d.key} fill={d.achieved ? COLOR.success : COLOR.danger} />
                   ))}
+                  <LabelList
+                    dataKey="overflow"
+                    position="insideTop"
+                    content={({ x, y, width, height, value }) => {
+                      if (!value) return null;
+                      return (
+                        <text
+                          x={x + width / 2}
+                          y={y + 14}
+                          fontSize={12}
+                          fontWeight={800}
+                          fill="#fff"
+                          textAnchor="middle"
+                        >~</text>
+                      );
+                    }}
+                  />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* 오른쪽 50%: 목표대비 상세현황 */}
-        <div style={{ flex: 1 }}>
-          <DetailTable results={results} />
+        {/* 우측 50%: 도넛차트 + 달성/미달성 현황 */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <RightTopPanel results={results} />
         </div>
 
       </div>
 
-      {/* ── 하단: 지표별 부족금액 Top5 + 달성/미달성 현황 ── */}
+      {/* ── 하단 2열: 목표대비 상세현황 + 부족금액 Top5 ── */}
       <div style={{ display: 'flex', gap: 20, alignItems: 'stretch', marginBottom: 20 }}>
 
-        {/* 왼쪽 50%: 부족금액 Top 5 */}
+        {/* 좌측 50%: 목표대비 상세현황 테이블 */}
         <div style={{ flex: 1 }}>
-          <ShortfallTop5 results={results} />
+          <DetailTable results={results} />
         </div>
 
-        {/* 오른쪽 50%: 달성/미달성 현황 */}
+        {/* 우측 50%: 지표별 부족금액 Top5 */}
         <div style={{ flex: 1 }}>
-          <AchievementStatus results={results} />
+          <ShortfallTop5 results={results} />
         </div>
 
       </div>
@@ -861,8 +1004,9 @@ const M = {
   overlay: {
     position: 'fixed', inset: 0,
     background: 'rgba(0,0,0,0.45)',
-    zIndex: 100,
+    zIndex: 1000,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
+    padding: '20px',
   },
   panel: {
     background: '#fff',
@@ -872,6 +1016,7 @@ const M = {
     maxHeight: '85vh',
     display: 'flex',
     flexDirection: 'column',
+    overflow: 'hidden',
     boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
   },
   header: {

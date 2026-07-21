@@ -210,7 +210,7 @@ export default function SimulationPage({ rows = [], results = [], finalScore = 0
             </div>
 
             <div style={P.fieldGroup}>
-              <div style={P.label}>구매구분</div>
+              <div style={P.label}>구매유형</div>
               <div style={{ display: 'flex', gap: 20 }}>
                 {['물품', '용역', '공사'].map(t => (
                   <label key={t} style={P.radioLabel}>

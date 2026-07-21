@@ -1,5 +1,18 @@
 import { useState, useEffect, useMemo } from 'react';
 
+const API_BASE   = process.env.REACT_APP_API_URL ?? '';
+const FETCH_OPTS = { credentials: 'include', headers: { 'Content-Type': 'application/json' } };
+
+// calc 컬럼명 → DB 컬럼명 (다른 이름을 가진 항목만)
+const CALC_TO_DB_COL = {
+  '중소기업제품(연동)':       '중소기업제품',
+  '여성기업제품(연동)':       '여성기업제품',
+  '장애인구매(연동)':         '장애인구매',
+  '신제품인증(NEP)여부':      '신제품인증NEP여부',
+  '신제품인증(NEP) 대상품목': '신제품인증NEP대상품목',
+};
+function toDbColName(k) { return CALC_TO_DB_COL[k] ?? k; }
+
 const KRW = (n) => (Number(n) ? Math.round(Number(n)).toLocaleString('ko-KR') + '원' : '-');
 
 const fmtDate = (v) => {
@@ -21,14 +34,15 @@ const toDateInput = (v) => {
 };
 
 const TABLE_COLS = [
-  { key: '집행구분',       label: '집행구분',  align: 'center' },
-  { key: '결의번호',       label: '결의번호',  align: 'left'   },
-  { key: '발의일자',       label: '발의일자',  align: 'left',  fmt: fmtDate },
-  { key: '구매구분',       label: '구매구분',  align: 'left'   },
-  { key: '적요',           label: '적요',      align: 'left',  maxWidth: 200 },
-  { key: '수령인사업자명', label: '거래처',    align: 'left',  maxWidth: 160 },
-  { key: '발주품목명',     label: '품목명',    align: 'left',  maxWidth: 160 },
-  { key: '물품금액',       label: '금액',      align: 'right'  },
+  { key: '집행구분',       label: '집행구분',  align: 'center'               },
+  { key: '결의번호',       label: '결의번호',  align: 'left'                  },
+  { key: '발의일자',       label: '발의일자',  align: 'left',  fmt: fmtDate   },
+  { key: '구매구분',       label: '구매유형',  align: 'left'                  },
+  { key: '수령인사업자명', label: '구매처',    align: 'left',  maxWidth: 160  },
+  { key: '적요',           label: '적요',      align: 'left',  maxWidth: 200  },
+  { key: '발주품목명',     label: '품목명',    align: 'left',  maxWidth: 160  },
+  { key: '예산명',         label: '예산명',    align: 'left',  maxWidth: 180  },
+  { key: '물품금액',       label: '금액',      align: 'right'                 },
 ];
 
 const FLAGS = [
@@ -106,7 +120,7 @@ function EditPanel({ mode, draft, selectedRow, onChange, onToggleFlag, onConfirm
       <div style={F.grid}>
         {[
           { key: '발의일자',       label: '발의일자',  type: 'date'   },
-          { key: '수령인사업자명', label: '거래처',    type: 'text'   },
+          { key: '수령인사업자명', label: '구매처',    type: 'text'   },
           { key: '발주품목명',     label: '품목명',    type: 'text'   },
           { key: '적요',           label: '적요',      type: 'text'   },
           { key: '물품금액',       label: '금액 (원)', type: 'number' },
@@ -123,7 +137,7 @@ function EditPanel({ mode, draft, selectedRow, onChange, onToggleFlag, onConfirm
           </div>
         ))}
         <div style={F.field}>
-          <label style={F.label}>구매구분</label>
+          <label style={F.label}>구매유형</label>
           <select value={draft['구매구분'] ?? '물품'} onChange={e => onChange('구매구분', e.target.value)} style={F.input}>
             {CATEGORIES.map(c => <option key={c}>{c}</option>)}
           </select>
@@ -161,15 +175,13 @@ function EditPanel({ mode, draft, selectedRow, onChange, onToggleFlag, onConfirm
 }
 
 // ── 테이블 행 ────────────────────────────────────────────────────────────────
-function TableRow({ row, index, excluded, isSelected, onRowClick, onToggleExclude, isNew }) {
-  const isManual  = row.__source === 'manual';
-  const isRaw     = row.__source === 'raw';
-  const isN       = row['집행구분'] === 'N';
+function TableRow({ row, index, excluded, isSelected, onRowClick, onToggleExclude }) {
+  const isRaw      = row.__source === 'raw';
+  const isN        = row['집행구분'] === 'N';
   const excludeKey = isRaw ? row.__결의번호 : row.__id;
 
   const rowBg = isSelected      ? '#EFF6FF'
               : excluded        ? '#fff2f0'
-              : isNew           ? '#fffbe6'
               : isN             ? '#fff2f0'
               : index % 2 === 0 ? '#fff'
               :                   '#fafafa';
@@ -238,24 +250,25 @@ function Toast({ message }) {
 }
 
 // ── 메인 페이지 ──────────────────────────────────────────────────────────────
-export default function DetailsPage({ rows, excludedSet: excludedSetProp = new Set(), onSave, onReset, onRefresh, onRowUpdate, onRowDelete }) {
-  const [excludedSet, setExcludedSet]   = useState(new Set());
-  const [localNewRows, setLocalNewRows] = useState([]);
-  const [sortConfig, setSortConfig]     = useState({ key: null, direction: null });
-  const [panelMode, setPanelMode]       = useState('idle');  // 'idle' | 'add' | 'edit'
-  const [selectedRow, setSelectedRow]   = useState(null);
-  const [panelDraft, setPanelDraft]     = useState({});
-  const [toast, setToast]               = useState(null);
+export default function DetailsPage({ rows, excludedSet: excludedSetProp = new Set(), deptId, onRefresh }) {
+  const [excludedSet, setExcludedSet] = useState(new Set());
+  const [sortConfig, setSortConfig]   = useState({ key: null, direction: null });
+  const [panelMode, setPanelMode]     = useState('idle');  // 'idle' | 'add' | 'edit'
+  const [selectedRow, setSelectedRow] = useState(null);
+  const [panelDraft, setPanelDraft]   = useState({});
+  const [toast, setToast]             = useState(null);
 
   useEffect(() => {
     setExcludedSet(new Set(excludedSetProp));
   }, [excludedSetProp]);
 
-  const toggleExclude = (bizNo) => {
-    if (!bizNo) return;
+  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
+
+  const toggleExclude = (key) => {
+    if (!key) return;
     setExcludedSet(prev => {
       const next = new Set(prev);
-      next.has(bizNo) ? next.delete(bizNo) : next.add(bizNo);
+      next.has(key) ? next.delete(key) : next.add(key);
       return next;
     });
   };
@@ -278,86 +291,150 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
     setPanelMode('add');
   };
 
-  const handlePanelChange    = (key, val) => setPanelDraft(prev => ({ ...prev, [key]: val }));
-  const handlePanelToggleFlag = (key)     => setPanelDraft(prev => ({ ...prev, [key]: prev[key] === 'Y' ? '' : 'Y' }));
+  const handlePanelChange     = (key, val) => setPanelDraft(prev => ({ ...prev, [key]: val }));
+  const handlePanelToggleFlag = (key)      => setPanelDraft(prev => ({ ...prev, [key]: prev[key] === 'Y' ? '' : 'Y' }));
 
-  const handlePanelAdd = () => {
+  // ── API 핸들러 ───────────────────────────────────────────────────────────────
+
+  const handlePanelAdd = async () => {
     if (!panelDraft['물품금액']) { alert('금액을 입력해주세요.'); return; }
-    const localId = `local_${Date.now()}`;
-    setLocalNewRows(prev => [...prev, {
-      ...panelDraft,
-      '물품금액': Number(panelDraft['물품금액']) || 0,
-      __source: 'manual',
-      __isNew: true,
-      __id: localId,
-    }]);
-    handleClosePanel();
+    try {
+      const res = await fetch(`${API_BASE}/api/purchases/manual`, {
+        ...FETCH_OPTS,
+        method: 'POST',
+        body:   JSON.stringify({ deptId, ...panelDraft, '물품금액': Number(panelDraft['물품금액']) || 0 }),
+      });
+      if (!res.ok) throw new Error('추가 실패');
+      handleClosePanel();
+      onRefresh?.();
+      showToast('행이 추가되었습니다');
+    } catch (e) {
+      alert('행 추가 중 오류가 발생했습니다.');
+      console.error(e);
+    }
   };
 
-  const handlePanelSave = () => {
+  const handlePanelSave = async () => {
     if (!selectedRow) return;
     const editedFields = { ...panelDraft, '물품금액': Number(panelDraft['물품금액']) || 0 };
-    if (selectedRow.__isNew) {
-      setLocalNewRows(prev => prev.map(r =>
-        r.__id === selectedRow.__id ? { ...r, ...editedFields } : r
-      ));
-    } else {
-      onRowUpdate?.(selectedRow, editedFields);
+
+    try {
+      if (selectedRow.__source === 'raw') {
+        // calc 컬럼명 → DB 컬럼명 변환 후 전송
+        const dbFields = {};
+        for (const [k, v] of Object.entries(editedFields)) {
+          dbFields[toDbColName(k)] = v;
+        }
+        const res = await fetch(`${API_BASE}/api/purchases/adjust`, {
+          ...FETCH_OPTS,
+          method: 'PUT',
+          body:   JSON.stringify({ deptId, 결의번호: selectedRow.__결의번호, fields: dbFields }),
+        });
+        if (!res.ok) throw new Error('수정 실패');
+      } else if (selectedRow.__source === 'manual') {
+        const res = await fetch(`${API_BASE}/api/purchases/manual/${selectedRow.__id}`, {
+          ...FETCH_OPTS,
+          method: 'PUT',
+          body:   JSON.stringify({ deptId, ...editedFields }),
+        });
+        if (!res.ok) throw new Error('수정 실패');
+      }
+      handleClosePanel();
+      onRefresh?.();
+      showToast('저장되었습니다');
+    } catch (e) {
+      alert('행 수정 중 오류가 발생했습니다.');
+      console.error(e);
     }
-    handleClosePanel();
   };
 
-  const handleDeleteManual = (id) => {
-    setLocalNewRows(prev => prev.filter(r => r.__id !== id));
-    if (selectedRow?.__id === id) handleClosePanel();
-  };
-
-  const handlePanelDelete = () => {
+  const handlePanelDelete = async () => {
     if (!selectedRow) return;
     if (!window.confirm('이 행을 삭제할까요?')) return;
-    if (selectedRow.__isNew) {
-      setLocalNewRows(prev => prev.filter(r => r.__id !== selectedRow.__id));
-    } else {
-      onRowDelete?.(selectedRow);
+
+    try {
+      if (selectedRow.__source === 'raw') {
+        const bizNo = encodeURIComponent(selectedRow.__결의번호 ?? '');
+        const res = await fetch(`${API_BASE}/api/purchases/delete/${bizNo}?deptId=${deptId}`, {
+          ...FETCH_OPTS,
+          method: 'DELETE',
+        });
+        if (!res.ok) throw new Error('삭제 실패');
+      } else if (selectedRow.__source === 'manual') {
+        const res = await fetch(`${API_BASE}/api/purchases/manual/${selectedRow.__id}?deptId=${deptId}`, {
+          ...FETCH_OPTS,
+          method: 'DELETE',
+        });
+        if (!res.ok) throw new Error('삭제 실패');
+      }
+      handleClosePanel();
+      onRefresh?.();
+      showToast('삭제되었습니다');
+    } catch (e) {
+      alert('행 삭제 중 오류가 발생했습니다.');
+      console.error(e);
     }
-    handleClosePanel();
   };
 
-  const handleSave = () => {
-    console.log('DetailsPage handleSave — localNewRows:', localNewRows);
-    if (onSave) onSave(excludedSet, localNewRows);
-    setLocalNewRows([]);
-    setToast('저장되었습니다');
-    setTimeout(() => setToast(null), 2500);
+  const handleSave = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/purchases/exclude`, {
+        ...FETCH_OPTS,
+        method: 'PUT',
+        body:   JSON.stringify({ deptId, excludeIds: [...excludedSet] }),
+      });
+      if (!res.ok) throw new Error('저장 실패');
+      onRefresh?.();
+      showToast('저장되었습니다');
+    } catch (e) {
+      alert('저장 중 오류가 발생했습니다.');
+      console.error(e);
+    }
   };
 
-  const handleReset = () => {
-    if (!window.confirm('업로드/수기입력 데이터를 모두 초기화할까요? 데모데이터는 유지됩니다.')) return;
-    setLocalNewRows([]);
-    setExcludedSet(new Set());
-    handleClosePanel();
-    onReset?.();
+  const handleReset = async () => {
+    if (!window.confirm('업로드/수기입력 데이터를 모두 초기화할까요?')) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/purchases/reset?deptId=${deptId}`, {
+        ...FETCH_OPTS,
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('초기화 실패');
+      setExcludedSet(new Set());
+      handleClosePanel();
+      onRefresh?.();
+      showToast('초기화되었습니다');
+    } catch (e) {
+      alert('초기화 중 오류가 발생했습니다.');
+      console.error(e);
+    }
   };
 
   const handleSort = (key) => {
     setSortConfig(prev => {
-      if (prev.key !== key)              return { key, direction: 'asc' };
-      if (prev.direction === 'asc')      return { key, direction: 'desc' };
-      if (prev.direction === 'desc')     return { key: null, direction: null };
+      if (prev.key !== key)          return { key, direction: 'asc' };
+      if (prev.direction === 'asc')  return { key, direction: 'desc' };
+      if (prev.direction === 'desc') return { key: null, direction: null };
       return { key, direction: 'asc' };
     });
   };
 
-  const allRows       = [...rows, ...localNewRows];
-  const total         = allRows.reduce((s, r) => s + (Number(r['물품금액']) || 0), 0);
-  const excludedTotal = allRows
+  // ── 집계 / 정렬 ──────────────────────────────────────────────────────────────
+
+  const total = rows.reduce((s, r) => s + (Number(r['물품금액']) || 0), 0);
+  const excludedTotal = rows
     .filter(r => excludedSet.has(r.__source === 'raw' ? r.__결의번호 : r.__id))
     .reduce((s, r) => s + (Number(r['물품금액']) || 0), 0);
-  const isDirty = localNewRows.length > 0 ||
-    rows.some(r => r.__source === 'raw' && ((r['제외여부'] === 1) !== excludedSet.has(r.__결의번호)));
+
+  const isDirty = useMemo(() => {
+    if (excludedSet.size !== excludedSetProp.size) return true;
+    for (const id of excludedSet) if (!excludedSetProp.has(id)) return true;
+    return false;
+  }, [excludedSet, excludedSetProp]);
+
   const sortedRows = useMemo(() => {
-    if (!sortConfig.key) return allRows;
-    return [...allRows].sort((a, b) => {
+    if (!sortConfig.key) return rows;
+    return [...rows].sort((a, b) => {
       const aVal = a[sortConfig.key] ?? '';
       const bVal = b[sortConfig.key] ?? '';
       if (sortConfig.key === '물품금액') {
@@ -369,7 +446,7 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
         ? String(aVal).localeCompare(String(bVal), 'ko')
         : String(bVal).localeCompare(String(aVal), 'ko');
     });
-  }, [allRows, sortConfig]);
+  }, [rows, sortConfig]);
 
   const tableMaxH = panelMode === 'idle' ? 'calc(100vh - 310px)' : 'calc(100vh - 530px)';
 
@@ -383,19 +460,16 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
           <div>
             <div style={P.pageTitle}>지출 내역</div>
             <div style={P.pageSub}>
-              전체 {allRows.length.toLocaleString()}건 · {KRW(total)}
+              전체 {rows.length.toLocaleString()}건 · {KRW(total)}
               {excludedSet.size > 0 && (
                 <span style={P.excludeBadge}>모수 제외 {excludedSet.size}건 ({KRW(excludedTotal)})</span>
-              )}
-              {localNewRows.length > 0 && (
-                <span style={P.newBadge}>미저장 {localNewRows.length}건</span>
               )}
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <button style={P.resetBtn}   onClick={handleReset}>🗑 초기화</button>
             <button style={P.addBtn}     onClick={handleOpenAdd}>+ 행 추가</button>
-            <button style={P.refreshBtn} onClick={() => { onRefresh?.(); setToast('조회되었습니다'); setTimeout(() => setToast(null), 2500); }}>🔄 조회</button>
+            <button style={P.refreshBtn} onClick={() => { onRefresh?.(); showToast('조회되었습니다'); }}>🔄 조회</button>
             <button style={P.saveBtn}    onClick={handleSave}>{isDirty ? '💾 저장 *' : '💾 저장'}</button>
           </div>
         </div>
@@ -414,7 +488,6 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
         <div style={P.legend}>
           <span><span style={{ ...P.dot, background: '#EFF6FF', border: '1px solid #93c5fd' }} />선택된 행</span>
           <span><span style={{ ...P.dot, background: '#fff2f0', border: '1px solid #ffa39e' }} />모수 제외된 행</span>
-          <span><span style={{ ...P.dot, background: '#fffbe6', border: '1px solid #ffd666' }} />미저장 새 행</span>
           <span style={{ color: '#64748b', fontSize: 12 }}>행 클릭 → 패널에서 수정 · 체크박스로 제외 설정 후 [저장]</span>
         </div>
       </div>
@@ -426,7 +499,7 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
             <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
               <tr style={{ background: '#F9FAFB' }}>
                 <th style={{ ...P.th, width: 40, textAlign: 'center' }}>모수 제외</th>
-                <th style={{ ...P.th, width: 36, textAlign: 'center' }}>No.</th>
+                <th style={{ ...P.th, width: 36, textAlign: 'center' }}>순번</th>
                 {TABLE_COLS.map(c => {
                   const sortable = SORTABLE_KEYS.has(c.key);
                   const active   = sortConfig.key === c.key;
@@ -451,7 +524,7 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
               </tr>
             </thead>
             <tbody>
-              {allRows.length === 0 && (
+              {rows.length === 0 && (
                 <tr>
                   <td colSpan={TABLE_COLS.length + 3} style={{ ...P.td, textAlign: 'center', color: '#aaa', padding: '40px 0' }}>
                     데이터가 없습니다.
@@ -472,7 +545,6 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
                   }
                   onRowClick={handleRowClick}
                   onToggleExclude={toggleExclude}
-                  isNew={!!row.__isNew}
                 />
               ))}
             </tbody>
@@ -497,7 +569,6 @@ const P = {
   pageTitle:    { fontSize: 20, fontWeight: 800, color: '#191F28', letterSpacing: '-0.5px' },
   pageSub:      { fontSize: 13, color: '#8B95A1', marginTop: 4 },
   excludeBadge: { marginLeft: 10, background: '#FFF0F1', color: '#F04452', padding: '2px 8px', borderRadius: 99, fontSize: 12, fontWeight: 600 },
-  newBadge:     { marginLeft: 6, background: '#FFF7EC', color: '#FF6B00', padding: '2px 8px', borderRadius: 99, fontSize: 12, fontWeight: 600 },
   addBtn:       { padding: '9px 18px', background: '#3182F6', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer' },
   saveBtn:      { padding: '9px 18px', background: '#00B493', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer' },
   resetBtn:     { padding: '9px 14px', background: '#FFFFFF', color: '#F04452', border: '1px solid #F2F4F6', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' },
