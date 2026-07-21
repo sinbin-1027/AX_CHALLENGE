@@ -1,9 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import FileUpload from './components/FileUpload';
 import Dashboard from './components/Dashboard';
 import DetailsPage from './pages/DetailsPage';
+import LoginPage from './pages/LoginPage';
 import VendorRecommend from './components/VendorRecommend';
 import VendorList from './components/VendorList';
 import ComingSoon from './pages/ComingSoon';
@@ -11,43 +12,70 @@ import SimulationPage from './pages/SimulationPage';
 import IndicatorStatusPage from './pages/IndicatorStatusPage';
 import IndicatorDetailPage from './pages/IndicatorDetailPage';
 import { calcEngine } from './utils/calcEngine';
-import { DEPARTMENTS, DEPT_GROUP_CONFIGS } from './data/departments';
-import demoData from './data/demoData';
+
+const API_BASE   = process.env.REACT_APP_API_URL ?? '';
+const FETCH_OPTS = { credentials: 'include', headers: { 'Content-Type': 'application/json' } };
+
+// ── 직군별 지표 제외 목록 ─────────────────────────────────────────────────────
+
+function buildExcludeTargets(groupName) {
+  if (groupName === '연수') return [];
+  if (groupName === '특화기능') {
+    return [
+      'sme', 'women_goods', 'women_service', 'women_construction',
+      'disabled_enterprise', 'standard_workshop', 'severe_disabled',
+      'cooperative', 'tech_development', 'pilot_purchase', 'nep',
+      'green_product', 'jawal_veteran', 'innovative_product',
+    ];
+  }
+  return ['innovative_product'];
+}
 
 // ── 메인 레이아웃 ─────────────────────────────────────────────────────────────
-function AppLayout() {
-  const [deptId, setDeptId]                       = useState('dept_01');
-  const [uploadedRowsMap, setUploadedRowsMap]     = useState({});  // { deptId: rows[] }
-  const [showUploadModal, setShowUploadModal]     = useState(false);
-  const [excludedSetMap, setExcludedSetMap]       = useState({});  // { deptId: Set<결의번호> }
-  const [manualRowsMap, setManualRowsMap]         = useState({});  // { deptId: rows[] }
-  const [vendorRegistry, setVendorRegistry]       = useState([]);  // 업체 목록 (로컬)
-  const [rowEditsMap, setRowEditsMap]             = useState({});  // { deptId: { 결의번호: {...} } }
-  const [deletedNosMap, setDeletedNosMap]         = useState({});  // { deptId: Set<결의번호> }
+function AppLayout({ onLogout }) {
+  const [departments, setDepartments]         = useState([]);
+  const [loadingDepts, setLoadingDepts]       = useState(true);
+  const [deptId, setDeptId]                   = useState(null);
+  const [apiRowsMap, setApiRowsMap]           = useState({});
+  const [loadingRows, setLoadingRows]         = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [vendorRegistry, setVendorRegistry]   = useState([]);
 
-  const handleDeptChange = (e) => setDeptId(e.target.value);
+  // ── API 조회 헬퍼 ───────────────────────────────────────────────────────────
 
-  // 행 인라인 수정 콜백
-  const handleRowUpdate = (row, editedFields) => {
-    if (row.__source === 'raw') {
-      setRowEditsMap(prev => ({
-        ...prev,
-        [deptId]: {
-          ...(prev[deptId] ?? {}),
-          [row.__결의번호]: { ...(prev[deptId]?.[row.__결의번호] ?? {}), ...editedFields },
-        },
-      }));
-    } else if (row.__source === 'manual') {
-      setManualRowsMap(prev => ({
-        ...prev,
-        [deptId]: (prev[deptId] ?? []).map(r =>
-          r.__id === row.__id ? { ...r, ...editedFields } : r
-        ),
-      }));
-    }
-  };
+  const fetchRows = useCallback((id) => {
+    if (!id) return;
+    setLoadingRows(true);
+    fetch(`${API_BASE}/api/purchases/list?deptId=${id}`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => setApiRowsMap(prev => ({ ...prev, [id]: data.rows ?? [] })))
+      .catch(e => console.error('지출내역 조회 실패:', e))
+      .finally(() => setLoadingRows(false));
+  }, []);
 
-  // 업체 인증 업로드 — certType별 rows를 vendorRegistry에 병합
+  // ── 초기화: 부서 목록 ────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/departments`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => {
+        setDepartments(data);
+        if (data.length > 0) setDeptId(data[0].id);
+      })
+      .catch(e => console.error('부서 목록 조회 실패:', e))
+      .finally(() => setLoadingDepts(false));
+  }, []);
+
+  // ── 부서 변경 시 지출내역 조회 ───────────────────────────────────────────────
+
+  useEffect(() => {
+    fetchRows(deptId);
+  }, [deptId, fetchRows]);
+
+  // ── 이벤트 핸들러 ───────────────────────────────────────────────────────────
+
+  const handleDeptChange = (e) => setDeptId(Number(e.target.value));
+
   const handleVendorUpload = (certType, certLabel, rows) => {
     const today = new Date().toISOString().slice(0, 10);
     setVendorRegistry(prev => {
@@ -69,130 +97,64 @@ function AppLayout() {
     });
   };
 
-  // FileUpload 완료 콜백 — 기존 업로드 데이터와 합치기 (결의번호 중복 제외)
-  const handleDataLoad = (newUploadedRows) => {
-    setUploadedRowsMap(prev => {
-      const existingUploaded = prev[deptId] ?? [];
-      const deptName = DEPARTMENTS.find(d => d.id === deptId)?.name;
-      const demoRows = demoData[deptName] ?? [];
-      const existingNos = new Set([
-        ...demoRows.map(r => r['결의번호']),
-        ...existingUploaded.map(r => r['결의번호']),
-      ]);
-      const newRows = newUploadedRows.filter(r => !existingNos.has(r['결의번호']));
-      return { ...prev, [deptId]: [...existingUploaded, ...newRows] };
-    });
+  const handleDataLoad = () => {
+    fetchRows(deptId);
     setShowUploadModal(false);
   };
 
-  // DetailsPage 초기화 콜백 — 현재 부서의 업로드/수기/제외/수정/삭제 전부 리셋 (데모 유지)
-  const handleReset = () => {
-    setUploadedRowsMap(prev => ({ ...prev, [deptId]: [] }));
-    setManualRowsMap(prev   => ({ ...prev, [deptId]: [] }));
-    setExcludedSetMap(prev  => ({ ...prev, [deptId]: new Set() }));
-    setRowEditsMap(prev     => ({ ...prev, [deptId]: {} }));
-    setDeletedNosMap(prev   => ({ ...prev, [deptId]: new Set() }));
+  const handleLogout = async () => {
+    try {
+      await fetch(`${API_BASE}/api/auth/logout`, { ...FETCH_OPTS, method: 'POST' });
+    } catch { /* ignore */ }
+    onLogout();
   };
 
-  // 행 삭제 콜백
-  const handleRowDelete = (row) => {
-    if (row.__source === 'raw') {
-      setDeletedNosMap(prev => {
-        const next = new Set(prev[deptId] ?? []);
-        next.add(row.__결의번호);
-        return { ...prev, [deptId]: next };
-      });
-    } else if (row.__source === 'manual') {
-      setManualRowsMap(prev => ({
-        ...prev,
-        [deptId]: (prev[deptId] ?? []).filter(r => r.__id !== row.__id),
-      }));
-    }
-  };
+  // ── rows + calcEngine ────────────────────────────────────────────────────────
 
-  // DetailsPage 저장 콜백 — excludedSet 반영 + 수동행 추가
-  const handleSave = (newExcludedSet, newManualRows) => {
-    console.log('handleSave:', newManualRows);
-    setExcludedSetMap(prev => ({ ...prev, [deptId]: new Set(newExcludedSet) }));
-    if (newManualRows.length > 0) {
-      setManualRowsMap(prev => {
-        const ts = Date.now();
-        const updated = {
-          ...prev,
-          [deptId]: [
-            ...(prev[deptId] ?? []),
-            ...newManualRows.map((r, i) => ({
-              ...r,
-              __source:   'manual',
-              __isNew:    false,
-              __id:       `m_${ts}_${i}`,
-              __결의번호: `manual_${ts}_${i}`,
-              물품금액:   Number(r['물품금액']) || Number(r['금액']) || 0,
-            })),
-          ],
-        };
-        console.log('updated manualRowsMap:', updated);
-        return updated;
-      });
-    }
-  };
+  const { activeRows, result, excludedSetFromApi } = useMemo(() => {
+    const dept = departments.find(d => d.id === deptId);
+    if (!dept) return { activeRows: [], result: null, excludedSetFromApi: new Set() };
 
-  // 데모 + 업로드 합치기 — 결의번호 기준 중복 제거,
-  // __source / __결의번호 / 제외여부 부여, calcEngine은 비제외 행만
-  const { activeRows, newRowCount, result } = useMemo(() => {
-    const dept         = DEPARTMENTS.find(d => d.id === deptId);
-    const demoRows     = demoData[dept?.name] ?? [];
-    const uploadedRows = uploadedRowsMap[deptId] ?? [];
-    const manualRows   = (manualRowsMap[deptId] ?? []).map(r => ({ ...r, __source: 'manual' }));
-    const currentExcludedSet = excludedSetMap[deptId] ?? new Set();
-    const deletedNos         = deletedNosMap[deptId]  ?? new Set();
+    const activeRows = apiRowsMap[deptId] ?? [];
 
-    const demoNos = new Set(demoRows.map(r => r['결의번호']));
-    const newRows = uploadedRows.filter(r => !demoNos.has(r['결의번호']));
+    const excludedSetFromApi = new Set(
+      activeRows
+        .filter(r => r.__source === 'raw' && r['제외여부'] === 1)
+        .map(r => r.__결의번호)
+        .filter(Boolean),
+    );
 
-    // raw 행마다 __source / __결의번호 / 제외여부 부여, rowEditsMap 덮어쓰기
-    const edits = rowEditsMap[deptId] ?? {};
-    const rawRows = [
-      ...demoRows.map((r, i) => ({ ...r, __결의번호: String(r['결의번호'] ?? `${deptId}_d${i}`) })),
-      ...newRows.map(r       => ({ ...r, __결의번호: String(r['결의번호'] ?? '')              })),
-    ].filter(r => !deletedNos.has(r.__결의번호))
-    .map(r => ({
-      ...r,
-      ...(edits[r.__결의번호] ?? {}),
-      __source: 'raw',
-      제외여부: currentExcludedSet.has(r.__결의번호) ? 1 : 0,
-    }));
+    if (!activeRows.length) return { activeRows, result: null, excludedSetFromApi };
 
-    const activeRows = [...rawRows, ...manualRows];
+    const calcRows = activeRows.filter(r => r.__source !== 'raw' || r['제외여부'] !== 1);
 
-    if (!dept || !activeRows.length) return { activeRows, newRowCount: newRows.length, result: null };
-
-    // calcEngine: 제외되지 않은 raw 행 + 모든 수동 행
-    const calcRows = rawRows.filter(r => r['제외여부'] !== 1).concat(manualRows);
-
-    const groupConfig = DEPT_GROUP_CONFIGS[dept.group];
-    const isYeonsooInner = dept?.group === '연수';
+    const isTokwha = dept.group_name === '특화기능';
     const overrides = {
-      headcount:       dept.headcount,
-      fixedTargets:    dept.targets,
-      scoreWeight:     groupConfig.scoreWeight,
-      totalPoints:     groupConfig.totalPoints,
-      targetOverrides: groupConfig.overrides ?? {},
-      excludeTargets:  isYeonsooInner ? [] : ['innovative_product'],
+      headcount:    dept.headcount,
+      fixedTargets: {
+        green_product: dept.green_product_target,
+        jawal_veteran: dept.jawal_veteran_target,
+      },
+      scoreWeight:     isTokwha ? 3  : dept.score_weight,
+      totalPoints:     isTokwha ? 10 : Number(dept.total_points),
+      targetOverrides: isTokwha ? {
+        startup:           { points: 1.0 },
+        social_enterprise: { points: 1.0 },
+        onnuri_voucher:    { points: 8.0 },
+      } : {},
+      excludeTargets: buildExcludeTargets(dept.group_name),
     };
 
     let result = null;
-    if (calcRows.length) {
-      try { result = calcEngine(calcRows, overrides); }
-      catch (e) { console.error('calcEngine 오류:', e); }
-    }
+    try { result = calcEngine(calcRows, overrides); }
+    catch (e) { console.error('calcEngine 오류:', e); }
 
-    return { activeRows, newRowCount: newRows.length, result };
-  }, [uploadedRowsMap, excludedSetMap, manualRowsMap, rowEditsMap, deletedNosMap, deptId]);
+    return { activeRows, result, excludedSetFromApi };
+  }, [departments, apiRowsMap, deptId]);
 
-  const selectedDept        = DEPARTMENTS.find(d => d.id === deptId);
-  const selectedGroupConfig = DEPT_GROUP_CONFIGS[selectedDept?.group];
-  const isYeonsoo           = selectedDept?.group === '연수';
+  const selectedDept = departments.find(d => d.id === deptId);
+  const isYeonsoo    = selectedDept?.group_name === '연수';
+  const rowCount     = (apiRowsMap[deptId] ?? []).length;
 
   return (
     <div style={S.root}>
@@ -202,19 +164,28 @@ function AppLayout() {
         {/* 상단 헤더 */}
         <div style={S.header}>
           <div style={S.headerLeft}>
-            <select value={deptId} onChange={handleDeptChange} style={S.deptSelect}>
-              {DEPARTMENTS.map(d => (
-                <option key={d.id} value={d.id}>{d.name}</option>
-              ))}
-            </select>
-            <span style={S.groupBadge}>{selectedDept?.group}</span>
-            <span style={{ ...S.sourceBadge, ...(newRowCount > 0 ? S.sourceBadgeUploaded : S.sourceBadgeDemo) }}>
-              {newRowCount > 0 ? `📂 데모 + 업로드 데이터 (추가 ${newRowCount}건)` : '🎯 데모 데이터'}
+            {loadingDepts ? (
+              <span style={S.loadingText}>⏳ 부서 목록 불러오는 중…</span>
+            ) : (
+              <select value={deptId ?? ''} onChange={handleDeptChange} style={S.deptSelect}>
+                {departments.map(d => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            )}
+            {selectedDept && (
+              <span style={S.groupBadge}>{selectedDept.group_name}</span>
+            )}
+            <span style={{ ...S.sourceBadge, ...(loadingRows ? S.sourceBadgeLoading : S.sourceBadgeApi) }}>
+              {loadingRows ? '불러오는 중…' : `📂 API 데이터 (${rowCount}건)`}
             </span>
           </div>
           <div style={S.headerRight}>
             <button onClick={() => setShowUploadModal(true)} style={S.updateBtn}>
               데이터 업데이트
+            </button>
+            <button onClick={handleLogout} style={S.logoutBtn}>
+              로그아웃
             </button>
           </div>
         </div>
@@ -230,17 +201,15 @@ function AppLayout() {
                   finalScore={result.finalScore}
                   stats={result.stats}
                   rows={activeRows}
-                  maxScore={selectedGroupConfig?.scoreWeight}
+                  maxScore={selectedDept?.score_weight}
                   isYeonsoo={isYeonsoo}
                 />
               ) : <ComingSoon title="데이터 없음" />
             } />
 
-            {/* 예산현황 */}
             <Route path="/budget/allocation" element={<ComingSoon title="예산 배정액" />} />
             <Route path="/budget/execution"  element={<ComingSoon title="예산 집행액" />} />
 
-            {/* 공공구매 관리 */}
             <Route path="/procurement/indicators" element={
               result
                 ? <IndicatorStatusPage stats={result.stats} finalScore={result.finalScore} results={result.results} rows={activeRows} isYeonsoo={isYeonsoo} />
@@ -250,16 +219,12 @@ function AppLayout() {
             <Route path="/procurement/register" element={
               <DetailsPage
                 rows={activeRows}
-                excludedSet={excludedSetMap[deptId] ?? new Set()}
-                onSave={handleSave}
-                onReset={handleReset}
-                onRefresh={() => {}}
-                onRowUpdate={handleRowUpdate}
-                onRowDelete={handleRowDelete}
+                excludedSet={excludedSetFromApi}
+                deptId={deptId}
+                onRefresh={() => fetchRows(deptId)}
               />
             } />
 
-            {/* 시뮬레이션 */}
             <Route path="/simulation/current"  element={<ComingSoon title="현재 달성률" />} />
             <Route path="/simulation/trend"    element={<ComingSoon title="추이 분석" />} />
             <Route path="/simulation/simulate" element={
@@ -267,20 +232,17 @@ function AppLayout() {
                 rows={activeRows}
                 results={result?.results ?? []}
                 finalScore={result?.finalScore ?? 0}
-                maxScore={selectedGroupConfig?.scoreWeight}
+                maxScore={selectedDept?.score_weight}
               />
             } />
 
-            {/* AI분석/지원 */}
             <Route path="/ai/guide"       element={<ComingSoon title="AI 집행가이드" />} />
             <Route path="/ai/regulations" element={<ComingSoon title="규정/가이드" />} />
 
-            {/* 데이터 관리 */}
             <Route path="/data/uploads"   element={<ComingSoon title="업로드 기록" />} />
             <Route path="/data/vendors"   element={<VendorList vendors={vendorRegistry} />} />
             <Route path="/data/recommend" element={<VendorRecommend results={result?.results ?? []} vendors={vendorRegistry} onVendorUpload={handleVendorUpload} />} />
 
-            {/* 구버전 경로 리다이렉트 */}
             <Route path="/details"     element={<Navigate to="/procurement/register" replace />} />
             <Route path="/vendors"     element={<Navigate to="/data/recommend" replace />} />
             <Route path="/vendor-list" element={<Navigate to="/data/vendors" replace />} />
@@ -288,7 +250,6 @@ function AppLayout() {
         </div>
       </div>
 
-      {/* 업로드 모달 */}
       {showUploadModal && (
         <div style={S.modalOverlay} onClick={() => setShowUploadModal(false)}>
           <div style={S.modalCard} onClick={e => e.stopPropagation()}>
@@ -297,7 +258,7 @@ function AppLayout() {
               <button onClick={() => setShowUploadModal(false)} style={S.modalClose}>✕</button>
             </div>
             <div style={S.modalBody}>
-              <FileUpload onDataLoad={handleDataLoad} />
+              <FileUpload deptId={deptId} onDataLoad={handleDataLoad} />
             </div>
           </div>
         </div>
@@ -307,10 +268,30 @@ function AppLayout() {
 }
 
 export default function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(null); // null=확인 중
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/auth/check`, { credentials: 'include' })
+      .then(r => setIsLoggedIn(r.ok))
+      .catch(() => setIsLoggedIn(false));
+  }, []);
+
+  if (isLoggedIn === null) {
+    return (
+      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', fontFamily: "sans-serif", color: '#8B95A1', fontSize: 15 }}>
+        로딩 중…
+      </div>
+    );
+  }
+
+  if (!isLoggedIn) {
+    return <LoginPage onLogin={() => setIsLoggedIn(true)} />;
+  }
+
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/*" element={<AppLayout />} />
+        <Route path="/*" element={<AppLayout onLogout={() => setIsLoggedIn(false)} />} />
       </Routes>
     </BrowserRouter>
   );
@@ -323,11 +304,13 @@ const S = {
   headerLeft: { display: 'flex', alignItems: 'center', gap: 14 },
   deptSelect: { padding: '6px 12px', border: '1px solid #E5E8EB', borderRadius: 8, fontSize: 14, fontWeight: 600, color: '#191F28', cursor: 'pointer', background: '#fff', outline: 'none' },
   groupBadge: { fontSize: 12, color: '#6B7684', background: '#F2F4F6', padding: '3px 10px', borderRadius: 12, fontWeight: 500 },
-  sourceBadge:         { fontSize: 12, padding: '3px 10px', borderRadius: 12, fontWeight: 500 },
-  sourceBadgeUploaded: { color: '#16a34a', background: '#dcfce7' },
-  sourceBadgeDemo:     { color: '#6B7684', background: '#F2F4F6' },
-  headerRight:{ display: 'flex', alignItems: 'center', gap: 14 },
+  loadingText:        { fontSize: 13, color: '#8B95A1', fontStyle: 'italic' },
+  sourceBadge:        { fontSize: 12, padding: '3px 10px', borderRadius: 12, fontWeight: 500 },
+  sourceBadgeApi:     { color: '#16a34a', background: '#dcfce7' },
+  sourceBadgeLoading: { color: '#6B7684', background: '#F2F4F6' },
+  headerRight:{ display: 'flex', alignItems: 'center', gap: 10 },
   updateBtn:  { padding: '6px 16px', background: '#3182F6', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' },
+  logoutBtn:  { padding: '6px 14px', background: '#fff', color: '#8B95A1', border: '1px solid #E5E8EB', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer' },
   content:    { flex: 1, padding: '24px 28px', overflowY: 'auto' },
   modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 },
   modalCard:    { background: '#fff', borderRadius: 16, width: 560, maxWidth: '92vw', boxShadow: '0 20px 60px rgba(0,0,0,0.18)', overflow: 'hidden' },

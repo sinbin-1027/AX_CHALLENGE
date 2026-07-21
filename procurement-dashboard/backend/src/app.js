@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const express        = require('express');
 const cors           = require('cors');
+const session        = require('express-session');
 const { initDB }     = require('./db/database');
 const authRoute        = require('./routes/auth');
 const dataRoute        = require('./routes/data');
@@ -12,8 +13,23 @@ const departmentsRoute = require('./routes/departments');
 const app  = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    'https://ax-challenge-murex.vercel.app',
+    'http://localhost:3000'
+  ],
+  credentials: true
+}))
 app.use(express.json({ limit: '50mb' }));
+app.use(session({
+  secret:            'procurement_session_secret',
+  resave:            false,
+  saveUninitialized: false,
+  cookie: {
+    secure: false,
+    maxAge: 24 * 60 * 60 * 1000,  // 24시간
+  },
+}));
 
 app.use('/api/auth',        authRoute);
 app.use('/api/data',        dataRoute);
