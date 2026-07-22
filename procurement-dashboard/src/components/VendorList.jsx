@@ -114,7 +114,7 @@ export default function VendorList() {
       if (s)      params.set('search', s);
       if (cert)   params.set('certType', cert);
       if (status) params.set('status', status);
-      const res  = await fetch(`${API_BASE}/api/vendors/list?${params}`, { credentials: 'include' });
+      const res  = await fetch(`${API_BASE}/api/vendors/list?${params}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
       const json = await res.json();
       setData({ vendors: json.vendors ?? [], total: json.total ?? 0 });
     } catch (e) {

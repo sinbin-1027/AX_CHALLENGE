@@ -13,8 +13,15 @@ import IndicatorStatusPage from './pages/IndicatorStatusPage';
 import IndicatorDetailPage from './pages/IndicatorDetailPage';
 import { calcEngine } from './utils/calcEngine';
 
-const API_BASE   = process.env.REACT_APP_API_URL || '';
-const FETCH_OPTS = { credentials: 'include', headers: { 'Content-Type': 'application/json' } };
+const API_BASE = process.env.REACT_APP_API_URL || '';
+
+const token      = localStorage.getItem('token');
+const FETCH_OPTS = {
+  headers: {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  },
+};
 
 // ── 직군별 지표 제외 목록 ─────────────────────────────────────────────────────
 
@@ -45,7 +52,7 @@ function AppLayout({ onLogout }) {
   const fetchRows = useCallback((id) => {
     if (!id) return;
     setLoadingRows(true);
-    fetch(`${API_BASE}/api/purchases/list?deptId=${id}`, { credentials: 'include' })
+    fetch(`${API_BASE}/api/purchases/list?deptId=${id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
       .then(r => r.json())
       .then(data => setApiRowsMap(prev => ({ ...prev, [id]: data.rows ?? [] })))
       .catch(e => console.error('지출내역 조회 실패:', e))
@@ -55,7 +62,7 @@ function AppLayout({ onLogout }) {
   // ── 초기화: 부서 목록 ────────────────────────────────────────────────────────
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/departments`, { credentials: 'include' })
+    fetch(`${API_BASE}/api/departments`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
       .then(r => r.json())
       .then(data => {
         setDepartments(data);
@@ -84,6 +91,7 @@ function AppLayout({ onLogout }) {
     try {
       await fetch(`${API_BASE}/api/auth/logout`, { ...FETCH_OPTS, method: 'POST' });
     } catch { /* ignore */ }
+    localStorage.removeItem('token');
     onLogout();
   };
 
@@ -255,7 +263,7 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(null); // null=확인 중
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/auth/check`, { credentials: 'include' })
+    fetch(`${API_BASE}/api/auth/check`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
       .then(r => setIsLoggedIn(r.ok))
       .catch(() => setIsLoggedIn(false));
   }, []);

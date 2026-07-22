@@ -2,7 +2,6 @@ require('dotenv').config();
 
 const express        = require('express');
 const cors           = require('cors');
-const session        = require('express-session');
 const path           = require('path');
 const { initDB }     = require('./db/database');
 const authRoute        = require('./routes/auth');
@@ -22,16 +21,6 @@ app.use(cors({
   credentials: true
 }))
 app.use(express.json({ limit: '50mb' }));
-app.use(session({
-  secret:            'procurement_session_secret',
-  resave:            false,
-  saveUninitialized: false,
-  cookie: {
-    secure:   process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    maxAge:   24 * 60 * 60 * 1000,  // 24시간
-  },
-}));
 
 app.use('/api/auth',        authRoute);
 app.use('/api/data',        dataRoute);

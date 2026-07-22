@@ -1,7 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 
-const API_BASE   = process.env.REACT_APP_API_URL ?? '';
-const FETCH_OPTS = { credentials: 'include', headers: { 'Content-Type': 'application/json' } };
+const API_BASE = process.env.REACT_APP_API_URL || '';
+
+const getAuthHeaders = () => ({
+  'Content-Type': 'application/json',
+  Authorization: `Bearer ${localStorage.getItem('token')}`,
+});
+const FETCH_OPTS = { get headers() { return getAuthHeaders(); } };
 
 // calc 컬럼명 → DB 컬럼명 (다른 이름을 가진 항목만)
 const CALC_TO_DB_COL = {
