@@ -3,6 +3,7 @@ require('dotenv').config();
 const express        = require('express');
 const cors           = require('cors');
 const session        = require('express-session');
+const path           = require('path');
 const { initDB }     = require('./db/database');
 const authRoute        = require('./routes/auth');
 const dataRoute        = require('./routes/data');
@@ -39,6 +40,14 @@ app.use('/api/purchases',   purchasesRoute);
 app.use('/api/departments', departmentsRoute);
 
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
+
+// React 정적 파일 서빙
+app.use(express.static(path.join(__dirname, '../../build')));
+
+// React Router 처리
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../../build', 'index.html'));
+});
 
 app.use((err, _req, res, _next) => {
   console.error(err);
