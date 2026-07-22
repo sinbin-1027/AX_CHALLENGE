@@ -56,7 +56,7 @@ export default function VendorRecommend({ insufficientKeys = [] }) {
       const params = new URLSearchParams({ page: pg, limit: LIMIT });
       if (keys.length > 0) params.set('insufficientKeys', keys.join(','));
       if (s) params.set('search', s);
-      const res  = await fetch(`${API_BASE}/api/vendors/search?${params}`, { credentials: 'include' });
+      const res  = await fetch(`${API_BASE}/api/vendors/search?${params}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
       const json = await res.json();
       setData({ vendors: json.vendors ?? [], total: json.total ?? 0 });
     } catch (e) {

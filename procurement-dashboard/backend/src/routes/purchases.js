@@ -86,13 +86,21 @@ function manualToCalcRow(row) {
   };
 }
 
-// ── 세션 헬퍼 ─────────────────────────────────────────────────────────────────
+// ── 서버 메모리 세션 스토어 ───────────────────────────────────────────────────
 
-function getTempData(session) {
-  if (!session.tempData) {
-    session.tempData = { uploadedRows: {}, manualRows: {}, excludedNos: {}, rowEdits: {}, deletedNos: {} };
+const sessionStore = new Map();
+
+function getTempData(sessionId) {
+  if (!sessionStore.has(sessionId)) {
+    sessionStore.set(sessionId, {
+      uploadedRows: {},
+      manualRows:   {},
+      excludedNos:  {},
+      rowEdits:     {},
+      deletedNos:   {},
+    });
   }
-  return session.tempData;
+  return sessionStore.get(sessionId);
 }
 
 function getDeptSession(tempData, deptId) {
@@ -112,7 +120,7 @@ router.get('/list', sessionAuth, async (req, res, next) => {
     const deptId = req.query.deptId;
     if (!deptId) return res.status(400).json({ message: 'deptId가 필요합니다.' });
 
-    const tempData = getTempData(req.session);
+    const tempData = getTempData(req.user.sessionId);
     const { uploadedRows, manualRows, excludedNos, rowEdits, deletedNos } = getDeptSession(tempData, deptId);
 
     // DB 읽기 (읽기전용)
@@ -158,7 +166,7 @@ router.post('/upload', sessionAuth, async (req, res, next) => {
     if (!deptId)                                   return res.status(400).json({ message: 'deptId가 필요합니다.' });
     if (!Array.isArray(rows) || rows.length === 0) return res.status(400).json({ message: 'rows 배열이 필요합니다.' });
 
-    const tempData = getTempData(req.session);
+    const tempData = getTempData(req.user.sessionId);
 
     // 중복 결의번호: DB + 세션 둘 다 확인
     const { rows: dbRows } = await pool.query(
@@ -193,7 +201,7 @@ router.post('/manual', sessionAuth, (req, res) => {
   const { deptId, ...rowData } = req.body ?? {};
   if (!deptId) return res.status(400).json({ message: 'deptId가 필요합니다.' });
 
-  const tempData = getTempData(req.session);
+  const tempData = getTempData(req.user.sessionId);
   if (!tempData.manualRows[deptId]) tempData.manualRows[deptId] = [];
 
   const newRow = {
@@ -211,7 +219,7 @@ router.put('/exclude', sessionAuth, (req, res) => {
   const { deptId, excludeIds = [] } = req.body ?? {};
   if (!deptId) return res.status(400).json({ message: 'deptId가 필요합니다.' });
 
-  const tempData = getTempData(req.session);
+  const tempData = getTempData(req.user.sessionId);
   tempData.excludedNos[deptId] = excludeIds;
 
   res.json({ ok: true, excludedCount: excludeIds.length });
@@ -225,7 +233,7 @@ router.put('/adjust', sessionAuth, (req, res) => {
     return res.status(400).json({ message: 'deptId, 결의번호, fields가 필요합니다.' });
   }
 
-  const tempData = getTempData(req.session);
+  const tempData = getTempData(req.user.sessionId);
   if (!tempData.rowEdits[deptId])        tempData.rowEdits[deptId] = {};
   if (!tempData.rowEdits[deptId][bizNo]) tempData.rowEdits[deptId][bizNo] = {};
   Object.assign(tempData.rowEdits[deptId][bizNo], fields);
@@ -240,7 +248,7 @@ router.put('/manual/:id', sessionAuth, (req, res) => {
   const { deptId, ...rowData } = req.body ?? {};
   if (!deptId) return res.status(400).json({ message: 'deptId가 필요합니다.' });
 
-  const tempData = getTempData(req.session);
+  const tempData = getTempData(req.user.sessionId);
   const rows = tempData.manualRows[deptId];
   if (!rows) return res.status(404).json({ message: '행을 찾을 수 없습니다.' });
 
@@ -258,7 +266,7 @@ router.delete('/manual/:id', sessionAuth, (req, res) => {
   const deptId   = req.query.deptId ?? req.body?.deptId;
   if (!deptId) return res.status(400).json({ message: 'deptId가 필요합니다.' });
 
-  const tempData = getTempData(req.session);
+  const tempData = getTempData(req.user.sessionId);
   if (tempData.manualRows[deptId]) {
     tempData.manualRows[deptId] = tempData.manualRows[deptId].filter(r => r.__id !== manualId);
   }
@@ -272,7 +280,7 @@ router.delete('/delete/:bizno', sessionAuth, (req, res) => {
   const deptId = req.body?.deptId ?? req.query.deptId;
   if (!deptId) return res.status(400).json({ message: 'deptId가 필요합니다.' });
 
-  const tempData = getTempData(req.session);
+  const tempData = getTempData(req.user.sessionId);
   if (!tempData.deletedNos[deptId]) tempData.deletedNos[deptId] = [];
   if (!tempData.deletedNos[deptId].includes(bizNo)) {
     tempData.deletedNos[deptId].push(bizNo);
@@ -287,7 +295,7 @@ router.delete('/reset', sessionAuth, (req, res) => {
   const deptId = req.body?.deptId ?? req.query.deptId;
   if (!deptId) return res.status(400).json({ message: 'deptId가 필요합니다.' });
 
-  const tempData = getTempData(req.session);
+  const tempData = getTempData(req.user.sessionId);
   tempData.uploadedRows[deptId] = [];
   tempData.manualRows[deptId]   = [];
   tempData.excludedNos[deptId]  = [];

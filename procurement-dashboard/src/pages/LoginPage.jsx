@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-const API_BASE = process.env.REACT_APP_API_URL ?? '';
+const API_BASE = process.env.REACT_APP_API_URL || '';
 
 export default function LoginPage({ onLogin }) {
   const [id, setId]           = useState('');
@@ -14,12 +14,13 @@ export default function LoginPage({ onLogin }) {
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/api/auth/login`, {
-        method:      'POST',
-        credentials: 'include',
-        headers:     { 'Content-Type': 'application/json' },
-        body:        JSON.stringify({ username: id, password: pw }),
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ username: id, password: pw }),
       });
       if (res.ok) {
+        const { token } = await res.json();
+        localStorage.setItem('token', token);
         onLogin();
       } else {
         setError('접속 정보가 올바르지 않습니다');

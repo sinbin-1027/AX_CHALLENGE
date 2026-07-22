@@ -58,10 +58,9 @@ export default function FileUpload({ deptId, onDataLoad }) {
     setStatus('uploading');
     try {
       const res = await fetch(`${API_BASE}/api/purchases/upload`, {
-        method:      'POST',
-        credentials: 'include',
-        headers:     { 'Content-Type': 'application/json' },
-        body:        JSON.stringify({ deptId, rows }),
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body:    JSON.stringify({ deptId, rows }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
