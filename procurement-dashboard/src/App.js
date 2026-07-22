@@ -13,7 +13,7 @@ import IndicatorStatusPage from './pages/IndicatorStatusPage';
 import IndicatorDetailPage from './pages/IndicatorDetailPage';
 import { calcEngine } from './utils/calcEngine';
 
-const API_BASE   = process.env.REACT_APP_API_URL ?? '';
+const API_BASE   = process.env.REACT_APP_API_URL || '';
 const FETCH_OPTS = { credentials: 'include', headers: { 'Content-Type': 'application/json' } };
 
 // ── 직군별 지표 제외 목록 ─────────────────────────────────────────────────────
