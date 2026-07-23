@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import FileUpload from './components/FileUpload';
 import Dashboard from './components/Dashboard';
@@ -11,6 +11,7 @@ import ComingSoon from './pages/ComingSoon';
 import SimulationPage from './pages/SimulationPage';
 import IndicatorStatusPage from './pages/IndicatorStatusPage';
 import IndicatorDetailPage from './pages/IndicatorDetailPage';
+import BudgetAllocationPage from './pages/BudgetAllocationPage';
 import { calcEngine } from './utils/calcEngine';
 
 const API_BASE = process.env.REACT_APP_API_URL || '';
@@ -40,6 +41,9 @@ function buildExcludeTargets(groupName) {
 
 // ── 메인 레이아웃 ─────────────────────────────────────────────────────────────
 function AppLayout({ onLogout }) {
+  const location = useLocation();
+  const isHome   = location.pathname === '/';
+
   const [departments, setDepartments]         = useState([]);
   const [loadingDepts, setLoadingDepts]       = useState(true);
   const [deptId, setDeptId]                   = useState(null);
@@ -162,14 +166,18 @@ function AppLayout({ onLogout }) {
             {selectedDept && (
               <span style={S.groupBadge}>{selectedDept.group_name}</span>
             )}
-            <span style={{ ...S.sourceBadge, ...(loadingRows ? S.sourceBadgeLoading : S.sourceBadgeApi) }}>
-              {loadingRows ? '불러오는 중…' : `📂 API 데이터 (${rowCount}건)`}
-            </span>
+            {isHome && (
+              <span style={{ ...S.sourceBadge, ...(loadingRows ? S.sourceBadgeLoading : S.sourceBadgeApi) }}>
+                {loadingRows ? '불러오는 중…' : `📂 API 데이터 (${rowCount}건)`}
+              </span>
+            )}
           </div>
           <div style={S.headerRight}>
-            <button onClick={() => setShowUploadModal(true)} style={S.updateBtn}>
-              데이터 업데이트
-            </button>
+            {isHome && (
+              <button onClick={() => setShowUploadModal(true)} style={S.updateBtn}>
+                데이터 업데이트
+              </button>
+            )}
             <button onClick={handleLogout} style={S.logoutBtn}>
               로그아웃
             </button>
@@ -193,7 +201,7 @@ function AppLayout({ onLogout }) {
               ) : <ComingSoon title="데이터 없음" />
             } />
 
-            <Route path="/budget/allocation" element={<ComingSoon title="예산 배정액" />} />
+            <Route path="/budget/allocation" element={<BudgetAllocationPage deptId={deptId} />} />
             <Route path="/budget/execution"  element={<ComingSoon title="예산 집행액" />} />
 
             <Route path="/procurement/indicators" element={
