@@ -12,6 +12,9 @@ import SimulationPage from './pages/SimulationPage';
 import IndicatorStatusPage from './pages/IndicatorStatusPage';
 import IndicatorDetailPage from './pages/IndicatorDetailPage';
 import BudgetAllocationPage from './pages/BudgetAllocationPage';
+import UploadHistoryPage from './pages/UploadHistoryPage';
+import GuideListPage from './pages/GuideListPage';
+import GuideDetailPage from './pages/GuideDetailPage';
 import { calcEngine } from './utils/calcEngine';
 
 const API_BASE = process.env.REACT_APP_API_URL || '';
@@ -234,11 +237,12 @@ function AppLayout({ onLogout }) {
             } />
             <Route path="/procurement/vendors" element={<VendorRecommend insufficientKeys={(result?.results ?? []).filter(r => !r.achieved).map(r => r.key)} />} />
 
-            <Route path="/regulations" element={<ComingSoon title="규정/가이드" />} />
+            <Route path="/regulations"     element={<GuideListPage />} />
+            <Route path="/regulations/:id" element={<GuideDetailPage />} />
 
             <Route path="/budget/trend" element={<ComingSoon title="집행 추이 분석" />} />
 
-            <Route path="/data/uploads"  element={<ComingSoon title="업로드 기록" />} />
+            <Route path="/data/uploads"  element={<UploadHistoryPage deptId={deptId} />} />
             <Route path="/data/vendors"  element={<VendorList />} />
 
             {/* 구 경로 리다이렉트 */}

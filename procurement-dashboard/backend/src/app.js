@@ -10,6 +10,8 @@ const vendorsRoute     = require('./routes/vendors');
 const purchasesRoute   = require('./routes/purchases');
 const departmentsRoute = require('./routes/departments');
 const budgetRoute       = require('./routes/budget');
+const uploadsRoute      = require('./routes/uploads');
+const guidesRoute       = require('./routes/guides');
 
 const app  = express();
 const PORT = process.env.PORT || 4000;
@@ -29,6 +31,8 @@ app.use('/api/vendors',     vendorsRoute);
 app.use('/api/purchases',   purchasesRoute);
 app.use('/api/departments', departmentsRoute);
 app.use('/api/budget',      budgetRoute);
+app.use('/api/uploads',     uploadsRoute);
+app.use('/api/guides',      guidesRoute);
 
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
 

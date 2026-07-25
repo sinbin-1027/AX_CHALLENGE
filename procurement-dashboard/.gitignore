@@ -29,3 +29,4 @@ backend/node_modules
 backend/procurement.db
 backend/procurement.db-shm
 backend/procurement.db-wal
+backend/uploads

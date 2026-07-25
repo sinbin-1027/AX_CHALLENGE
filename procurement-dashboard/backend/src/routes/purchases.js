@@ -189,6 +189,11 @@ router.post('/upload', sessionAuth, async (req, res, next) => {
       added++;
     }
 
+    await pool.query(
+      `INSERT INTO upload_logs (dept_id, description, uploaded_at) VALUES ($1, $2, NOW())`,
+      [deptId, '사용자 엑셀 업로드'],
+    );
+
     res.status(201).json({ added, skipped });
   } catch (err) {
     next(err);

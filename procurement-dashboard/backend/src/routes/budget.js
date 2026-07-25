@@ -54,7 +54,7 @@ router.get('/allocation', sessionAuth, async (req, res, next) => {
     if (!deptId) return res.status(400).json({ message: 'deptId가 필요합니다.' });
 
     const { rows } = await pool.query(`
-      SELECT 절명, 예산과목명, 회계연도, 배정액, 집행액, 잔액, 집행률, 기금수탁여부
+      SELECT 절명, 예산과목명, 회계연도, 년예산, 배정액, 집행액, 잔액, 집행률, 기금수탁여부
       FROM budget_allocations
       WHERE dept_id = $1
       ORDER BY 절명, 예산과목코드
@@ -80,6 +80,7 @@ router.get('/allocation', sessionAuth, async (req, res, next) => {
         items: items.map(r => ({
           예산과목명:   r.예산과목명,
           회계연도:     r.회계연도,
+          년예산:       Number(r.년예산) || 0,
           배정액:       Number(r.배정액) || 0,
           집행액:       Number(r.집행액) || 0,
           잔액:         Number(r.잔액)   || 0,
