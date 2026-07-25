@@ -53,6 +53,15 @@ async function initDB() {
   `);
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS upload_logs (
+      id          SERIAL PRIMARY KEY,
+      dept_id     INTEGER REFERENCES departments(id),
+      description TEXT,
+      uploaded_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS raw_purchases (
       id                       SERIAL PRIMARY KEY,
       dept_id                  INTEGER REFERENCES departments(id),
@@ -113,6 +122,18 @@ async function initDB() {
       집행구분                 VARCHAR(1) DEFAULT 'Y',
       created_at               TIMESTAMP DEFAULT NOW(),
       updated_at               TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS guides (
+      id                SERIAL PRIMARY KEY,
+      title             TEXT NOT NULL,
+      original_filename TEXT NOT NULL,
+      stored_filename   TEXT NOT NULL,
+      file_path         TEXT NOT NULL,
+      file_size         INTEGER,
+      uploaded_at       TIMESTAMPTZ DEFAULT NOW()
     )
   `);
 

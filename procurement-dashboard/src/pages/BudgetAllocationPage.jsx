@@ -12,14 +12,54 @@ function rateColor(rate) {
   return '#F04452';
 }
 
-// ── KPI 카드 ─────────────────────────────────────────────────────────────────
-function KpiCard({ title, value, unit, valueColor }) {
+// ── 예산 배정 요약 카드 ──────────────────────────────────────────────────────
+// 집행률 색상 (아래 상세 테이블의 rateColor와 반대 의미: 집행률이 높을수록 잔여예산이
+// 빠듯하다는 경고 신호이므로 높을수록 빨강)
+function budgetRateColor(rate) {
+  if (rate >= 90) return '#F04452';
+  if (rate >= 70) return '#FF6B00';
+  return '#00B493';
+}
+
+// 개별 항목 카드: 제목 → 잔액(강조) → 집행률 바 → 배정액 보조텍스트
+// (showBar=false면 바/보조텍스트 대신 pctLabel 텍스트만 표시 — 연간 배정액 카드용)
+function ItemCard({ title, allocated, executed, pctLabel, showBar = true, style }) {
+  const remaining = allocated - executed;
+  const rate = allocated > 0 ? (executed / allocated) * 100 : 0;
+  const color = budgetRateColor(rate);
+
   return (
-    <div style={S.kpiCard}>
+    <div style={{ ...S.itemCard, ...style }}>
       <div style={S.kpiTitle}>{title}</div>
-      <div style={S.kpiValueRow}>
-        <span style={{ ...S.kpiValue, color: valueColor ?? '#191F28' }}>{value}</span>
-        {unit && <span style={S.kpiUnit}>{unit}</span>}
+      <div style={S.itemValue}>{KRW(remaining)}</div>
+      {showBar ? (
+        <>
+          <div style={S.itemBarRow}>
+            <div style={S.itemBarTrack}>
+              <div style={{ ...S.itemBarFill, width: `${Math.min(Math.max(rate, 0), 100)}%`, background: color }} />
+            </div>
+            <span style={{ ...S.itemBarPct, color }}>{PCT(rate)}</span>
+          </div>
+          <div style={S.itemSub}>배정 {KRW(allocated)}</div>
+        </>
+      ) : (
+        <div style={S.itemSub}>{pctLabel}</div>
+      )}
+    </div>
+  );
+}
+
+// 그룹 카드: 상단에 그룹 총합(배정액 + annualTotal 대비 %), 하단에 하위 항목 2개
+function GroupCard({ title, totalAllocated, pctLabel, items }) {
+  return (
+    <div style={{ ...S.itemCard, ...S.groupCard }}>
+      <div style={S.kpiTitle}>{title}</div>
+      <div style={S.itemValue}>{KRW(totalAllocated)}</div>
+      <div style={S.itemSub}>{pctLabel}</div>
+      <div style={S.groupSubRow}>
+        {items.map(it => (
+          <ItemCard key={it.title} {...it} style={S.groupSubItem} />
+        ))}
       </div>
     </div>
   );
@@ -75,14 +115,74 @@ export default function BudgetAllocationPage({ deptId }) {
   const { groups, total } = data;
   const totalRate = total.배정액합계 > 0 ? (total.집행액합계 / total.배정액합계) * 100 : 0;
 
+  // ── 예산 배정 요약 카드 계산 ─────────────────────────────────────────────────
+  const allItems    = groups.flatMap(g => g.items);
+  const annualTotal = allItems.reduce((s, r) => s + (r.년예산 || 0), 0);
+
+  // 예산과목명 조건에 맞는 항목들의 배정액/집행액 합
+  const sumFields = (pred) => {
+    const matched = allItems.filter(r => pred(r.예산과목명 ?? ''));
+    return {
+      allocated: matched.reduce((s, r) => s + (r.배정액 || 0), 0),
+      executed:  matched.reduce((s, r) => s + (r.집행액 || 0), 0),
+    };
+  };
+
+  const pctOfAnnual = (v) => annualTotal > 0 ? (v / annualTotal) * 100 : 0;
+  const pctLabel     = (v) => `(${PCT(pctOfAnnual(v))})`;
+
+  // 활동비: 업무추진비 / 여비
+  const 업무추진비        = sumFields(n => n.includes('업무추진비'));
+  const 여비              = sumFields(n => n.includes('여비'));
+  const 활동비총합배정액 = 업무추진비.allocated + 여비.allocated;
+
+  // 운영비: 특근매식비 / 기타운영비(부운영비·회의비·기타운영비 통합, OR 조건)
+  const 특근매식비        = sumFields(n => n.includes('특근매식비'));
+  const 기타운영비        = sumFields(n => n.includes('부운영비') || n.includes('회의비') || n.includes('기타운영비'));
+  const 운영비총합배정액 = 특근매식비.allocated + 기타운영비.allocated;
+
+  // 일반수용비 / 일반용역비 / 일반공사비
+  const 일반수용비 = sumFields(n => n.includes('수용'));
+  const 일반용역비 = sumFields(n => n.includes('일반용역'));
+  const 일반공사비 = sumFields(n => n.includes('공사'));
+
   return (
     <div style={S.page}>
 
-      {/* KPI 카드 3개 */}
+      {/* 예산 배정 요약 카드 */}
       <div style={S.kpiRow}>
-        <KpiCard title="총 배정액" value={KRW(total.배정액합계)} />
-        <KpiCard title="총 집행액" value={KRW(total.집행액합계)} />
-        <KpiCard title="전체 집행률" value={PCT(totalRate)} valueColor={rateColor(totalRate)} />
+        <ItemCard
+          title="연간 배정액"
+          allocated={annualTotal}
+          executed={0}
+          showBar={false}
+          pctLabel="(100%)"
+          style={S.standaloneCard}
+        />
+
+        <GroupCard
+          title="활동비 배정액"
+          totalAllocated={활동비총합배정액}
+          pctLabel={pctLabel(활동비총합배정액)}
+          items={[
+            { title: '업무추진비', ...업무추진비 },
+            { title: '여비',       ...여비 },
+          ]}
+        />
+
+        <GroupCard
+          title="운영비 배정액"
+          totalAllocated={운영비총합배정액}
+          pctLabel={pctLabel(운영비총합배정액)}
+          items={[
+            { title: '특근매식비', ...특근매식비 },
+            { title: '기타운영비', ...기타운영비 },
+          ]}
+        />
+
+        <ItemCard title="일반수용비 배정액" {...일반수용비} style={S.standaloneCard} />
+        <ItemCard title="일반용역비 배정액" {...일반용역비} style={S.standaloneCard} />
+        <ItemCard title="일반공사비 배정액" {...일반공사비} style={S.standaloneCard} />
       </div>
 
       {/* 메인 테이블 */}
@@ -180,12 +280,21 @@ const S = {
 
   centerMsg: { padding: '80px 0', textAlign: 'center', color: '#8B95A1', fontSize: 14 },
 
-  kpiRow:      { display: 'flex', gap: 14, marginBottom: 18 },
-  kpiCard:     { flex: 1, background: '#FFFFFF', borderRadius: 16, padding: '20px 20px 18px', border: '1px solid #F2F4F6', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', minWidth: 0 },
+  kpiRow:      { display: 'flex', gap: 14, marginBottom: 18, alignItems: 'stretch' },
   kpiTitle:    { fontSize: 12, color: '#8B95A1', marginBottom: 8, fontWeight: 500 },
-  kpiValueRow: { display: 'flex', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' },
-  kpiValue:    { fontSize: 22, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.5px' },
-  kpiUnit:     { fontSize: 13, color: '#8B95A1' },
+
+  itemCard:       { background: '#FFFFFF', borderRadius: 16, padding: '18px 18px 16px', border: '1px solid #F2F4F6', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', minWidth: 0, display: 'flex', flexDirection: 'column' },
+  standaloneCard: { flex: 1 },
+  itemValue:      { fontSize: 20, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.4px', color: '#191F28' },
+  itemBarRow:     { display: 'flex', alignItems: 'center', gap: 6, marginTop: 10 },
+  itemBarTrack:   { flex: 1, height: 5, background: '#F2F4F6', borderRadius: 99, overflow: 'hidden' },
+  itemBarFill:    { height: '100%', borderRadius: 99, transition: 'width 0.3s ease' },
+  itemBarPct:     { fontSize: 11, fontWeight: 700, flexShrink: 0, width: 36, textAlign: 'right' },
+  itemSub:        { fontSize: 11, color: '#8B95A1', marginTop: 6, fontWeight: 500 },
+
+  groupCard:     { flex: 2.2 },
+  groupSubRow:   { display: 'flex', gap: 10, marginTop: 14, paddingTop: 14, borderTop: '1px solid #F2F4F6' },
+  groupSubItem:  { flex: 1, background: '#F9FAFB', border: '1px solid #F2F4F6', borderRadius: 12, padding: '12px 14px', boxShadow: 'none' },
 
   card: { background: '#FFFFFF', borderRadius: 16, border: '1px solid #F2F4F6', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden' },
 
