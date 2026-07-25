@@ -5,7 +5,7 @@ require('dotenv').config();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 async function insertBudget() {
-  const data = JSON.parse(fs.readFileSync('./budget_data.json', 'utf-8'));
+  const data = JSON.parse(fs.readFileSync('./budget_data_batch2.json', 'utf-8'));
   const client = await pool.connect();
 
   try {
