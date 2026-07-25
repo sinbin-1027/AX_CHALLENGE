@@ -50,6 +50,7 @@ function AppLayout({ onLogout }) {
   const [apiRowsMap, setApiRowsMap]           = useState({});
   const [loadingRows, setLoadingRows]         = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [budgetSummary, setBudgetSummary]     = useState({ allocatedBudget: null, remainingBudget: null });
 
   // ── API 조회 헬퍼 ───────────────────────────────────────────────────────────
 
@@ -81,6 +82,16 @@ function AppLayout({ onLogout }) {
   useEffect(() => {
     fetchRows(deptId);
   }, [deptId, fetchRows]);
+
+  // ── 부서 변경 시 잔여예산 조회 ───────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!deptId) return;
+    fetch(`${API_BASE}/api/budget/remaining?deptId=${deptId}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+      .then(r => r.json())
+      .then(data => setBudgetSummary({ allocatedBudget: data.allocatedBudget, remainingBudget: data.remainingBudget }))
+      .catch(e => console.error('잔여예산 조회 실패:', e));
+  }, [deptId]);
 
   // ── 이벤트 핸들러 ───────────────────────────────────────────────────────────
 
@@ -144,7 +155,6 @@ function AppLayout({ onLogout }) {
 
   const selectedDept = departments.find(d => d.id === deptId);
   const isYeonsoo    = selectedDept?.group_name === '연수';
-  const rowCount     = (apiRowsMap[deptId] ?? []).length;
 
   return (
     <div style={S.root}>
@@ -155,7 +165,7 @@ function AppLayout({ onLogout }) {
         <div style={S.header}>
           <div style={S.headerLeft}>
             {loadingDepts ? (
-              <span style={S.loadingText}>⏳ 부서 목록 불러오는 중…</span>
+              <span style={S.loadingText}>부서 목록 불러오는 중…</span>
             ) : (
               <select value={deptId ?? ''} onChange={handleDeptChange} style={S.deptSelect}>
                 {departments.map(d => (
@@ -165,11 +175,6 @@ function AppLayout({ onLogout }) {
             )}
             {selectedDept && (
               <span style={S.groupBadge}>{selectedDept.group_name}</span>
-            )}
-            {isHome && (
-              <span style={{ ...S.sourceBadge, ...(loadingRows ? S.sourceBadgeLoading : S.sourceBadgeApi) }}>
-                {loadingRows ? '불러오는 중…' : `📂 API 데이터 (${rowCount}건)`}
-              </span>
             )}
           </div>
           <div style={S.headerRight}>
@@ -193,7 +198,7 @@ function AppLayout({ onLogout }) {
                   results={result.results}
                   totalScore={result.totalScore}
                   finalScore={result.finalScore}
-                  stats={result.stats}
+                  stats={{ ...result.stats, ...budgetSummary }}
                   rows={activeRows}
                   maxScore={selectedDept?.score_weight}
                   isYeonsoo={isYeonsoo}
@@ -304,10 +309,7 @@ const S = {
   headerLeft: { display: 'flex', alignItems: 'center', gap: 14 },
   deptSelect: { padding: '6px 12px', border: '1px solid #E5E8EB', borderRadius: 8, fontSize: 14, fontWeight: 600, color: '#191F28', cursor: 'pointer', background: '#fff', outline: 'none' },
   groupBadge: { fontSize: 12, color: '#6B7684', background: '#F2F4F6', padding: '3px 10px', borderRadius: 12, fontWeight: 500 },
-  loadingText:        { fontSize: 13, color: '#8B95A1', fontStyle: 'italic' },
-  sourceBadge:        { fontSize: 12, padding: '3px 10px', borderRadius: 12, fontWeight: 500 },
-  sourceBadgeApi:     { color: '#16a34a', background: '#dcfce7' },
-  sourceBadgeLoading: { color: '#6B7684', background: '#F2F4F6' },
+  loadingText:{ fontSize: 13, color: '#8B95A1', fontStyle: 'italic' },
   headerRight:{ display: 'flex', alignItems: 'center', gap: 10 },
   updateBtn:  { padding: '6px 16px', background: '#3182F6', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' },
   logoutBtn:  { padding: '6px 14px', background: '#fff', color: '#8B95A1', border: '1px solid #E5E8EB', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer' },

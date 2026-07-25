@@ -5,7 +5,6 @@ export default function ComingSoon({ title }) {
       alignItems: 'center', justifyContent: 'center',
       height: '60vh', gap: 16,
     }}>
-      <div style={{ fontSize: 52 }}>🚧</div>
       <div style={{ fontSize: 22, fontWeight: 800, color: '#191F28', letterSpacing: '-0.5px' }}>
         준비중입니다
       </div>

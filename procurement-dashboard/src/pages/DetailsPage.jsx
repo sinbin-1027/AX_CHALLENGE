@@ -171,7 +171,7 @@ function EditPanel({ mode, draft, selectedRow, onChange, onToggleFlag, onConfirm
       <div style={F.actions}>
         <button type="button" onClick={onCancel} style={F.cancelBtn}>취소</button>
         {!isAdd && (
-          <button type="button" onClick={onDelete} style={F.deleteBtn}>🗑 삭제</button>
+          <button type="button" onClick={onDelete} style={F.deleteBtn}>삭제</button>
         )}
         <button type="button" onClick={onConfirm} style={F.saveBtn}>{isAdd ? '추가' : '저장'}</button>
       </div>
@@ -472,10 +472,10 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button style={P.resetBtn}   onClick={handleReset}>🗑 초기화</button>
+            <button style={P.resetBtn}   onClick={handleReset}>초기화</button>
             <button style={P.addBtn}     onClick={handleOpenAdd}>+ 행 추가</button>
-            <button style={P.refreshBtn} onClick={() => { onRefresh?.(); showToast('조회되었습니다'); }}>🔄 조회</button>
-            <button style={P.saveBtn}    onClick={handleSave}>{isDirty ? '💾 저장 *' : '💾 저장'}</button>
+            <button style={P.refreshBtn} onClick={() => { onRefresh?.(); showToast('조회되었습니다'); }}>조회</button>
+            <button style={P.saveBtn}    onClick={handleSave}>{isDirty ? '저장 *' : '저장'}</button>
           </div>
         </div>
 

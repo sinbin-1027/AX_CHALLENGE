@@ -56,10 +56,9 @@ function createVirtualRow(amount, purchaseType, checkedKeys) {
 }
 
 // ── 요약 카드 ─────────────────────────────────────────────────────────────────
-function SummaryCard({ icon, label, value, sub, valueColor }) {
+function SummaryCard({ label, value, sub, valueColor }) {
   return (
     <div style={SC.card}>
-      <div style={SC.icon}>{icon}</div>
       <div style={SC.label}>{label}</div>
       <div style={{ ...SC.value, color: valueColor ?? COLOR.text }}>{value}</div>
       {sub && <div style={SC.sub}>{sub}</div>}
@@ -69,7 +68,6 @@ function SummaryCard({ icon, label, value, sub, valueColor }) {
 
 const SC = {
   card:  { background: '#fff', borderRadius: 16, padding: '20px 24px', border: `1px solid ${COLOR.border}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', flex: 1 },
-  icon:  { fontSize: 22, marginBottom: 8 },
   label: { fontSize: 12, color: COLOR.subtext, fontWeight: 500, marginBottom: 6 },
   value: { fontSize: 24, fontWeight: 800, letterSpacing: '-0.5px', lineHeight: 1 },
   sub:   { fontSize: 12, color: COLOR.subtext, marginTop: 6 },
@@ -151,27 +149,23 @@ export default function SimulationPage({ rows = [], results = [], finalScore = 0
       {/* ── 요약 카드 ── */}
       <div style={{ display: 'flex', gap: 14, marginBottom: 20 }}>
         <SummaryCard
-          icon="⭐"
           label="현재 공공구매 점수"
           value={`${finalScore.toFixed(2)}점`}
           sub={`만점 ${maxScore?.toFixed(2) ?? '4.00'}점`}
           valueColor={scoreColor}
         />
         <SummaryCard
-          icon="✅"
           label="달성 지표"
           value={`${achieved.length} / ${results.length}개`}
           sub={results.length ? `달성률 ${((achieved.length / results.length) * 100).toFixed(1)}%` : '-'}
           valueColor={achieved.length >= results.length * 0.7 ? COLOR.success : COLOR.danger}
         />
         <SummaryCard
-          icon="📦"
           label="총 구매 실적"
           value={KRW(rows.filter(r => (r['제외여부'] ?? 0) === 0).reduce((s, r) => s + (Number(r['물품금액']) || 0), 0))}
           sub={`${rows.length}건`}
         />
         <SummaryCard
-          icon="🔍"
           label="미달성 지표"
           value={`${results.filter(r => !r.achieved && r.targetAmount > 0).length}개`}
           sub="추가 구매 필요"
@@ -183,7 +177,7 @@ export default function SimulationPage({ rows = [], results = [], finalScore = 0
       <div style={P.panel}>
         <div style={P.header}>
           <div>
-            <div style={P.title}>🔮 실적 시뮬레이션</div>
+            <div style={P.title}>실적 시뮬레이션</div>
             <div style={P.desc}>구매 예정 건을 입력하면 지표별 달성률과 점수 변화를 미리 확인할 수 있습니다.</div>
           </div>
           {simResult && (
@@ -269,7 +263,6 @@ export default function SimulationPage({ rows = [], results = [], finalScore = 0
           <div style={P.resultPane}>
             {!simResult ? (
               <div style={P.placeholder}>
-                <div style={{ fontSize: 48, marginBottom: 14 }}>📊</div>
                 <div style={{ fontSize: 16, color: COLOR.subtext, marginBottom: 8 }}>구매 예정 정보를 입력하고</div>
                 <div style={{ fontSize: 16, color: COLOR.subtext }}>"분석하기"를 눌러주세요.</div>
               </div>

@@ -36,7 +36,6 @@ export default function LoginPage({ onLogin }) {
     <div style={S.page}>
       <div style={S.card}>
         <div style={S.logoWrap}>
-          <span style={S.logoIcon}>📊</span>
           <span style={S.logoText}>예산 및 공공구매 현황 대시보드</span>
         </div>
         <div style={S.title}>로그인</div>
@@ -78,7 +77,6 @@ const S = {
   page:     { minHeight: '100vh', background: '#F9FAFB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "-apple-system, 'Pretendard', 'Apple SD Gothic Neo', sans-serif" },
   card:     { background: '#fff', borderRadius: 20, padding: '44px 40px 40px', width: 380, boxShadow: '0 4px 32px rgba(0,0,0,0.08)' },
   logoWrap: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 28 },
-  logoIcon: { fontSize: 22 },
   logoText: { fontSize: 15, fontWeight: 700, color: '#3182F6', letterSpacing: '-0.3px' },
   title:    { fontSize: 26, fontWeight: 800, color: '#191F28', marginBottom: 28, letterSpacing: '-0.8px' },
   form:     { display: 'flex', flexDirection: 'column', gap: 18 },

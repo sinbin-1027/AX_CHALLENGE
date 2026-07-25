@@ -44,13 +44,12 @@ const GROUPS = [
 ];
 
 // ── KPI 카드 ─────────────────────────────────────────────────────────────────
-function KpiCard({ icon, title, value, unit, sub, valueColor, onClick }) {
+function KpiCard({ title, value, unit, sub, valueColor, onClick }) {
   return (
     <div
       style={{ ...S.kpiCard, ...(onClick ? S.kpiCardClickable : {}) }}
       onClick={onClick}
     >
-      <div style={S.kpiIcon}>{icon}</div>
       <div style={S.kpiTitle}>
         {title}
         {onClick && <span style={S.kpiHint}>상세 보기 →</span>}
@@ -71,6 +70,7 @@ function IndicatorCard({ r }) {
   const barWidth   = Math.min(dispRate * 100, 100);
   const rateColor  = r.achieved ? '#00B493' : '#F04452';
   const noTarget   = r.targetAmount === 0 && !isAutoFull;
+  const shortfall  = !noTarget && !isAutoFull ? Math.max(0, r.targetAmount - r.actual) : 0;
 
   return (
     <div style={S.indCard}>
@@ -93,11 +93,17 @@ function IndicatorCard({ r }) {
         <span style={S.indLbl}>지출액</span>
         <span style={S.indVal}>{KRW(r.actual)}</span>
       </div>
+      <div style={S.indRow}>
+        <span style={S.indLbl}>부족액</span>
+        <span style={{ ...S.indVal, color: shortfall > 0 ? '#F04452' : '#8B95A1', fontWeight: shortfall > 0 ? 700 : 500 }}>
+          {noTarget ? '-' : shortfall > 0 ? KRW(shortfall) : '달성'}
+        </span>
+      </div>
 
       <div style={{ marginTop: 10 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-          <span style={{ fontSize: 11, color: '#8B95A1' }}>달성률</span>
-          <span style={{ fontSize: 13, fontWeight: 700, color: noTarget ? '#8B95A1' : rateColor }}>
+          <span style={{ fontSize: 12, color: '#8B95A1' }}>달성률</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: noTarget ? '#8B95A1' : rateColor }}>
             {noTarget ? '-' : PCT(dispRate)}
           </span>
         </div>
@@ -132,30 +138,30 @@ export default function IndicatorStatusPage({ stats, finalScore, results, rows =
       {/* KPI 카드 5개 */}
       <div style={S.kpiRow}>
         <KpiCard
-          icon="🛒" title="총 구매액"
+          title="총 구매액"
           value={KRW(stats?.totalPurchaseAll)}
           sub={`전체 ${stats?.rowCount?.toLocaleString('ko-KR') ?? 0}건`}
           onClick={() => setShowDetail(true)}
         />
         <KpiCard
-          icon="🎯" title="공공구매 목표액"
+          title="공공구매 목표액"
           value={KRW(stats?.totalTargetSum)}
           sub="목표 합산"
           onClick={() => setShowTargetModal(true)}
         />
         <KpiCard
-          icon="📦" title="공공구매 지출액"
+          title="공공구매 지출액"
           value={KRW(stats?.totalPurchase)}
           sub="물품·용역·공사"
         />
         <KpiCard
-          icon="✅" title="지표달성률(전체)"
+          title="지표달성률(전체)"
           value={`${achieved.length} / ${total}개`}
           sub={`(${total ? ((achieved.length / total) * 100).toFixed(1) : '0.0'}%)`}
           valueColor={achieved.length >= total * 0.7 ? '#00B493' : '#F04452'}
         />
         <KpiCard
-          icon="⭐" title="공공구매 점수"
+          title="공공구매 점수"
           value={finalScore?.toFixed(2) ?? '-'}
           unit="/ 4.00점"
           valueColor={scoreColor}
@@ -170,7 +176,7 @@ export default function IndicatorStatusPage({ stats, finalScore, results, rows =
           return (
             <div key={group.label} style={S.groupRow}>
               <div style={{ ...S.groupLabel, background: group.bg, borderLeft: `4px solid ${group.color}` }}>
-                <span style={{ color: group.color, fontSize: 12, fontWeight: 700, whiteSpace: 'pre-line', lineHeight: 1.5, textAlign: 'center' }}>
+                <span style={{ color: group.color, fontSize: 13, fontWeight: 700, whiteSpace: 'pre-line', lineHeight: 1.5, textAlign: 'center' }}>
                   {group.label}
                 </span>
               </div>
@@ -194,13 +200,12 @@ const S = {
   kpiRow:          { display: 'flex', gap: 14, marginBottom: 18 },
   kpiCard:         { flex: 1, background: '#FFFFFF', borderRadius: 16, padding: '18px 18px 14px', border: '1px solid #F2F4F6', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', minWidth: 0 },
   kpiCardClickable: { cursor: 'pointer', transition: 'border-color 0.15s' },
-  kpiIcon:         { fontSize: 20, marginBottom: 8 },
-  kpiTitle:        { fontSize: 12, color: '#8B95A1', marginBottom: 6, fontWeight: 500, display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  kpiHint:         { fontSize: 11, color: '#3182F6', fontWeight: 500 },
+  kpiTitle:        { fontSize: 13, color: '#8B95A1', marginBottom: 6, fontWeight: 500, display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  kpiHint:         { fontSize: 12, color: '#3182F6', fontWeight: 500 },
   kpiValueRow:     { display: 'flex', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' },
-  kpiValue:        { fontSize: 20, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.5px' },
-  kpiUnit:         { fontSize: 12, color: '#8B95A1' },
-  kpiSub:          { fontSize: 12, color: '#8B95A1', marginTop: 5 },
+  kpiValue:        { fontSize: 22, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.5px' },
+  kpiUnit:         { fontSize: 13, color: '#8B95A1' },
+  kpiSub:          { fontSize: 13, color: '#8B95A1', marginTop: 5 },
 
   groupRow:   { display: 'flex', background: '#FFFFFF', borderRadius: 14, border: '1px solid #F2F4F6', overflow: 'hidden' },
   groupLabel: { width: 80, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px 8px' },
@@ -208,17 +213,17 @@ const S = {
 
   indCard:    { flex: 1, background: '#FFFFFF', borderRadius: 12, padding: '13px 13px', border: '1px solid #F2F4F6', minWidth: 0 },
   indHeader:  { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 9, gap: 4 },
-  indLabel:   { fontSize: 13, fontWeight: 700, color: '#191F28', lineHeight: 1.3 },
+  indLabel:   { fontSize: 14, fontWeight: 700, color: '#191F28', lineHeight: 1.3 },
   indRow:     { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 },
-  indLbl:     { fontSize: 11, color: '#8B95A1' },
-  indVal:     { fontSize: 12, color: '#191F28', fontWeight: 500 },
+  indLbl:     { fontSize: 12, color: '#8B95A1' },
+  indVal:     { fontSize: 13, color: '#191F28', fontWeight: 500 },
 
   barTrack: { height: 5, background: '#F2F4F6', borderRadius: 99, overflow: 'hidden' },
   barFill:  { height: '100%', borderRadius: 99, transition: 'width 0.3s ease' },
 
   badge: {
-    ok:   { fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: '#E6F7F4', color: '#00B493', whiteSpace: 'nowrap', flexShrink: 0 },
-    no:   { fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: '#FFF0F1', color: '#F04452', whiteSpace: 'nowrap', flexShrink: 0 },
-    auto: { fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: '#EBF3FE', color: '#3182F6', whiteSpace: 'nowrap', flexShrink: 0 },
+    ok:   { fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: '#E6F7F4', color: '#00B493', whiteSpace: 'nowrap', flexShrink: 0 },
+    no:   { fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: '#FFF0F1', color: '#F04452', whiteSpace: 'nowrap', flexShrink: 0 },
+    auto: { fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: '#EBF3FE', color: '#3182F6', whiteSpace: 'nowrap', flexShrink: 0 },
   },
 };

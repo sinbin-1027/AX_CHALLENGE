@@ -87,7 +87,7 @@ export default function VendorRecommend({ insufficientKeys = [] }) {
         <div style={S.insufficientWrap}>
           <span style={S.insufficientLabel}>현재 미달성 지표</span>
           {insufficientLabels.length === 0 ? (
-            <span style={{ fontSize: 13, color: '#52c41a' }}>🎉 모든 지표 달성!</span>
+            <span style={{ fontSize: 13, color: '#52c41a' }}>모든 지표 달성!</span>
           ) : (
             <div style={S.badgeRow}>
               {insufficientLabels.map(label => (

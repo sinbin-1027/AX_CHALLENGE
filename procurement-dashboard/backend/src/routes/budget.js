@@ -4,6 +4,48 @@ const { pool }    = require('../db/database');
 
 const router = express.Router();
 
+// ── 잔여예산 계산 ────────────────────────────────────────────────────────────
+
+async function getBudgetSummary(client, deptId) {
+  const result = await client.query(`
+    WITH budget_with_mokname AS (
+      SELECT *, reverse(split_part(reverse(예산과목명), '-', 1)) AS 목명
+      FROM budget_allocations
+      WHERE 회계연도 = $1 AND dept_id = $2
+    )
+    SELECT
+      COALESCE(SUM(배정액), 0) AS allocated_budget,
+      COALESCE(SUM(배정액 - 집행액), 0) AS remaining_budget
+    FROM budget_with_mokname
+    WHERE
+      목명 LIKE '일반수용비%'
+      OR 목명 LIKE '%용역비%'
+      OR 목명 = '일반연구비'
+      OR 목명 = '공사비'
+      OR 목명 = '감리비'
+      OR 목명 = '실시설계비'
+  `, [new Date().getFullYear(), deptId]);
+
+  return {
+    allocatedBudget: Number(result.rows[0].allocated_budget),
+    remainingBudget: Number(result.rows[0].remaining_budget),
+  };
+}
+
+// ── GET /api/budget/remaining ────────────────────────────────────────────────
+
+router.get('/remaining', sessionAuth, async (req, res, next) => {
+  try {
+    const { deptId } = req.query;
+    if (!deptId) return res.status(400).json({ message: 'deptId가 필요합니다.' });
+
+    const summary = await getBudgetSummary(pool, deptId);
+    res.json(summary);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── GET /api/budget/allocation ────────────────────────────────────────────────
 
 router.get('/allocation', sessionAuth, async (req, res, next) => {
