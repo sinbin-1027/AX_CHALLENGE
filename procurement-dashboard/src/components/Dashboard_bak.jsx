@@ -23,12 +23,13 @@ const COLOR = {
 };
 
 // ── KPI 카드 ─────────────────────────────────────────────────────────────────
-function KpiCard({ title, value, unit, sub, valueColor, onClick }) {
+function KpiCard({ icon, title, value, unit, sub, valueColor, onClick }) {
   return (
     <div
       style={{ ...S.kpiCard, ...(onClick ? S.kpiCardClickable : {}) }}
       onClick={onClick}
     >
+      <div style={S.kpiIcon}>{icon}</div>
       <div style={S.kpiTitle}>{title}{onClick && <span style={S.kpiHint}>상세 보기 →</span>}</div>
       <div style={S.kpiValueRow}>
         <span style={{ ...S.kpiValue, color: valueColor ?? COLOR.text }}>{value}</span>
@@ -206,7 +207,7 @@ function AchievedModal({ achieved, onClose }) {
     <div style={AM.overlay} onClick={onClose}>
       <div style={AM.panel} onClick={e => e.stopPropagation()}>
         <div style={AM.header}>
-          <div style={AM.title}>달성 지표 전체 목록 ({achieved.length}개)</div>
+          <div style={AM.title}>✅ 달성 지표 전체 목록 ({achieved.length}개)</div>
           <button style={AM.closeBtn} onClick={onClose}>✕</button>
         </div>
         <div style={AM.body}>
@@ -311,7 +312,7 @@ function AchievementStatus({ results }) {
       {/* 달성 지표 */}
       <div style={AS.section}>
         <div style={AS.sectionHeader}>
-          <span style={{ ...AS.sectionTitle, color: COLOR.success }}>달성 지표 ({achieved.length}개)</span>
+          <span style={{ ...AS.sectionTitle, color: COLOR.success }}>✅ 달성 지표 ({achieved.length}개)</span>
           {achieved.length > 3 && (
             <button style={AS.moreBtn} onClick={() => setShowAchievedModal(true)}>더보기</button>
           )}
@@ -337,7 +338,7 @@ function AchievementStatus({ results }) {
           )}
         </div>
         {notAchieved.length === 0 && (
-          <div style={{ ...AS.empty, color: COLOR.success }}>모든 지표를 달성했습니다!</div>
+          <div style={{ ...AS.empty, color: COLOR.success }}>🎉 모든 지표를 달성했습니다!</div>
         )}
         {top3notAchieved.map(r => (
           <div key={r.key} style={AS.item}>
@@ -427,7 +428,7 @@ function RightTopPanel({ results }) {
       {/* 달성 지표 */}
       <div style={AS.section}>
         <div style={AS.sectionHeader}>
-          <span style={{ ...AS.sectionTitle, color: COLOR.success }}>달성 지표 ({achieved.length}개)</span>
+          <span style={{ ...AS.sectionTitle, color: COLOR.success }}>✅ 달성 지표 ({achieved.length}개)</span>
           {achieved.length > 3 && (
             <button style={AS.moreBtn} onClick={() => setShowAchievedModal(true)}>더보기</button>
           )}
@@ -453,7 +454,7 @@ function RightTopPanel({ results }) {
           )}
         </div>
         {notAchieved.length === 0 && (
-          <div style={{ ...AS.empty, color: COLOR.success }}>모든 지표를 달성했습니다!</div>
+          <div style={{ ...AS.empty, color: COLOR.success }}>🎉 모든 지표를 달성했습니다!</div>
         )}
         {top3notAchieved.map(r => (
           <div key={r.key} style={AS.item}>
@@ -469,6 +470,7 @@ function RightTopPanel({ results }) {
 
 // ── 목표대비 상세현황 테이블 ─────────────────────────────────────────────────
 
+// 모달 전체 지표 (세부 분리)
 const MODAL_GROUPS = [
   { label: '중소기업',       key: 'sme' },
   { label: '창업기업',       key: 'startup' },
@@ -495,6 +497,7 @@ function rateColor(rate) {
   return COLOR.danger;
 }
 
+// 테이블 바디 + 합계행 공용 렌더러
 function DetailTableBody({ rows, totals }) {
   return (
     <table style={DT.table}>
@@ -573,16 +576,19 @@ function DetailTable({ results }) {
 
   const resultMap = Object.fromEntries(results.map(r => [r.key, r]));
 
+  // 기본화면 Top5: results 배열에서 targetAmount>0인 것만 부족액 순 정렬
   const top5 = results
     .filter(r => r.targetAmount > 0)
     .map(r => toDetailRow(r.label, r))
     .sort((a, b) => b.shortfall - a.shortfall)
     .slice(0, 5);
 
+  // 모달 전체: MODAL_GROUPS 순서대로
   const modalRows = MODAL_GROUPS.map(({ label, key }) =>
     toDetailRow(label, resultMap[key])
   );
 
+  // 합계: targetAmount>0 전체 기준
   const validAll = results.filter(r => r.targetAmount > 0);
   const totals = {
     target:   validAll.reduce((s, r) => s + r.targetAmount, 0),
@@ -593,6 +599,7 @@ function DetailTable({ results }) {
 
   return (
     <div style={{ ...S.card, marginTop: 16 }}>
+      {/* 모달 */}
       {showModal && (
         <div style={DT.overlay} onClick={() => setShowModal(false)}>
           <div style={DT.modal} onClick={e => e.stopPropagation()}>
@@ -613,6 +620,7 @@ function DetailTable({ results }) {
         </div>
       )}
 
+      {/* 카드 헤더 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={S.cardTitle}>목표대비 상세현황</div>
@@ -657,10 +665,10 @@ function ShortfallTop5({ results }) {
 
   return (
     <div style={{ ...T.card }}>
-      <div style={T.title}>지표별 부족금액 Top 5</div>
+      <div style={T.title}>🚨 지표별 부족금액 Top 5</div>
 
       {top5.length === 0 ? (
-        <div style={T.empty}>모든 지표 달성!</div>
+        <div style={T.empty}>🎉 모든 지표 달성!</div>
       ) : (
         <div style={T.list}>
           {top5.map((r, i) => (
@@ -727,20 +735,6 @@ export default function Dashboard({ results, totalScore, finalScore, stats, rows
 
   const scoreColor = finalScore >= 3 ? COLOR.success : finalScore >= 2 ? '#faad14' : COLOR.danger;
 
-  const allocatedBudgetKnown = stats?.allocatedBudget != null;
-  const remainingBudgetKnown = stats?.remainingBudget != null;
-
-  // 공공구매부족액: 목표액이 있는 지표들의 (목표액-실적) 합산 (초과분은 0 처리)
-  const totalShortfall = results
-    .filter(r => r.targetAmount > 0)
-    .reduce((s, r) => s + Math.max(0, r.targetAmount - r.actual), 0);
-
-  // 공공구매실적 상세보기: 모수 제외분 + 구매유형 미지정('없음'/공백) + 온누리상품권 제외
-  // (공공구매실적 KPI가 실제로 집계하는 대상과 동일한 물품·용역·공사 확정 건만 표시)
-  const purchaseDetailRows = rows.filter(r =>
-    r['제외여부'] !== 1 && ['물품', '용역', '공사'].includes(r['구매구분']),
-  );
-
   // 바 차트 데이터
   const chartData = results.map(r => {
     const rawRate = +(r.achievementRate * 100).toFixed(1);
@@ -762,45 +756,44 @@ export default function Dashboard({ results, totalScore, finalScore, stats, rows
   return (
     <div style={{ fontFamily: "'Pretendard', 'Apple SD Gothic Neo', sans-serif" }}>
 
-      {showDetail      && <DetailModal  rows={purchaseDetailRows} onClose={() => setShowDetail(false)} />}
+      {showDetail      && <DetailModal  rows={rows}    onClose={() => setShowDetail(false)} />}
       {showTargetModal && <TargetModal  results={results} onClose={() => setShowTargetModal(false)} />}
 
-      {/* ── KPI 카드 6개: 점수 / 목표액 / 실적 / 부족액 / 배정액 / 잔액 ── */}
+      {/* ── KPI 카드 5개 ── */}
       <div style={S.kpiRow}>
         <KpiCard
-          title="공공구매점수"
-          value={finalScore.toFixed(2)}
-          unit={`/ ${maxScore?.toFixed(2) ?? '4.00'}점`}
-          valueColor={scoreColor}
-        />
-        <KpiCard
-          title="공공구매목표액"
-          value={KRW(stats?.totalTargetSum)}
-          sub="목표 합산"
-          onClick={() => setShowTargetModal(true)}
-        />
-        <KpiCard
-          title="공공구매실적"
-          value={KRW(stats?.totalPurchase)}
-          sub="물품·용역·공사"
+          icon="🛒"
+          title="총 구매액"
+          value={KRW(stats?.totalPurchaseAll)}
+          sub={`전체 ${stats?.rowCount?.toLocaleString('ko-KR')}건`}
           onClick={() => setShowDetail(true)}
         />
         <KpiCard
-          title="공공구매부족액"
-          value={KRW(totalShortfall)}
-          sub="지표별 부족액 합산"
-          valueColor={totalShortfall > 0 ? COLOR.danger : COLOR.success}
+          icon="🎯"
+          title="공공구매 목표액"
+          value={KRW(stats?.totalTargetSum)}
+          sub={`목표 합산`}
+          onClick={() => setShowTargetModal(true)}
         />
         <KpiCard
-          title="예산배정액"
-          value={allocatedBudgetKnown ? KRW(stats.allocatedBudget) : '-'}
-          sub="수용비·용역·연구·공사 항목 기준"
+          icon="📦"
+          title="공공구매 지출액"
+          value={KRW(stats?.totalPurchase)}
+          sub="물품·용역·공사"
         />
         <KpiCard
-          title="예산잔액"
-          value={remainingBudgetKnown ? KRW(stats.remainingBudget) : '-'}
-          sub="배정액 - 집행액"
-          valueColor={remainingBudgetKnown && stats.remainingBudget < 0 ? COLOR.danger : COLOR.text}
+          icon="✅"
+          title="지표달성률(전체)"
+          value={`${achieved.length} / ${results.length}개`}
+          sub={`(${results.length ? ((achieved.length / results.length) * 100).toFixed(1) : '0.0'}%)`}
+          valueColor={achieved.length >= results.length * 0.7 ? COLOR.success : COLOR.danger}
+        />
+        <KpiCard
+          icon="⭐"
+          title="공공구매 점수"
+          value={finalScore.toFixed(2)}
+          unit={`/ ${maxScore?.toFixed(2) ?? '4.00'}점`}
+          valueColor={scoreColor}
         />
       </div>
 
@@ -931,6 +924,7 @@ const S = {
     minWidth: 0,
   },
   kpiCardClickable: { cursor: 'pointer', transition: 'border-color 0.15s' },
+  kpiIcon:     { fontSize: 20, marginBottom: 10 },
   kpiTitle:    { fontSize: 12, color: COLOR.subtext, marginBottom: 8, fontWeight: 500, display: 'flex', justifyContent: 'space-between', alignItems: 'center', letterSpacing: '0.1px' },
   kpiHint:     { fontSize: 11, color: COLOR.primary, fontWeight: 500 },
   kpiValueRow: { display: 'flex', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' },

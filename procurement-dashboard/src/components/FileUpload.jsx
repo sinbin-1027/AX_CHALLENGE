@@ -117,7 +117,6 @@ export default function FileUpload({ deptId, onDataLoad }) {
           </div>
         ) : (
           <div style={styles.status}>
-            <span style={styles.iconUpload}>📂</span>
             <div>
               <div style={styles.hint}>엑셀 파일을 여기에 끌어다 놓거나 클릭하여 업로드</div>
               <div style={styles.sub}>.xlsx · RAW 시트</div>
@@ -136,7 +135,6 @@ const styles = {
   dropzone:         { border: '2px dashed #cbd5e1', borderRadius: 12, padding: '32px 24px', cursor: 'pointer', background: '#f8fafc', transition: 'border-color 0.15s, background 0.15s', userSelect: 'none' },
   dropzoneDragging: { borderColor: '#3b82f6', background: '#eff6ff' },
   status:           { display: 'flex', alignItems: 'center', gap: 16 },
-  iconUpload:       { fontSize: 32 },
   iconDone:         { fontSize: 28, color: '#22c55e', fontWeight: 700 },
   hint:             { fontSize: 15, color: '#334155', fontWeight: 500 },
   sub:              { fontSize: 13, color: '#94a3b8', marginTop: 4 },

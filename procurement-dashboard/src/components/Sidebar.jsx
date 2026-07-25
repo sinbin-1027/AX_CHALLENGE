@@ -4,13 +4,13 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 const NAV = [
   {
     key: 'dashboard',
-    icon: '🏠',
+    icon: '종',
     label: '종합현황',
     path: '/',
   },
   {
     key: 'budget',
-    icon: '📊',
+    icon: '예',
     label: '예산관리',
     children: [
       { key: 'budget-alloc',  label: '예산 배정 현황', path: '/budget/allocation' },
@@ -20,7 +20,7 @@ const NAV = [
   },
   {
     key: 'procurement',
-    icon: '📋',
+    icon: '공',
     label: '공공구매 관리',
     children: [
       { key: 'proc-indicators', label: '지표 현황',           path: '/procurement/indicators' },
@@ -32,13 +32,13 @@ const NAV = [
   },
   {
     key: 'regulations',
-    icon: '📖',
+    icon: '규',
     label: '규정/가이드',
     path: '/regulations',
   },
   {
     key: 'data',
-    icon: '🗂️',
+    icon: '데',
     label: '데이터 관리',
     children: [
       { key: 'data-uploads',  label: '업로드 기록',       path: '/data/uploads'  },
@@ -82,8 +82,7 @@ export default function Sidebar() {
 
       {/* 로고 */}
       <div style={S.logo}>
-        <span style={S.logoIcon}>🏛</span>
-        {!collapsed && <span style={S.logoText}>KOSME 예산 관리 시스템</span>}
+        {collapsed ? <span style={S.logoIcon}>K</span> : <span style={S.logoText}>KOSME 예산 관리 시스템</span>}
       </div>
 
       {/* 네비게이션 */}
@@ -170,7 +169,7 @@ const S = {
     borderBottom: '1px solid rgba(255,255,255,0.08)',
     minHeight: 64,
   },
-  logoIcon: { fontSize: 20, flexShrink: 0 },
+  logoIcon: { fontSize: 18, fontWeight: 800, color: '#fff', flexShrink: 0 },
   logoText: {
     color: '#fff',
     fontSize: 13,
@@ -198,7 +197,7 @@ const S = {
   },
   itemActive:       { background: '#3182F6', color: '#fff' },
   itemParentActive: { color: '#fff' },
-  icon:      { fontSize: 15, flexShrink: 0, width: 20, textAlign: 'center' },
+  icon:      { fontSize: 13, fontWeight: 700, flexShrink: 0, width: 20, textAlign: 'center' },
   itemLabel: { fontSize: 13, fontWeight: 500, flex: 1, whiteSpace: 'nowrap' },
   arrow:     { fontSize: 9, color: 'rgba(255,255,255,0.35)', flexShrink: 0 },
   subMenu:   { paddingLeft: 4, marginBottom: 4 },
