@@ -77,18 +77,18 @@ function RateBar({ rate }) {
 }
 
 // ── 메인 페이지 ──────────────────────────────────────────────────────────────
-export default function BudgetAllocationPage({ deptId }) {
+export default function BudgetAllocationPage({ deptId, year }) {
   const [data,      setData]      = useState(null);
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState('');
   const [collapsed, setCollapsed] = useState(() => new Set());
 
   useEffect(() => {
-    if (!deptId) return;
+    if (!deptId || !year) return;
     setLoading(true);
     setError('');
 
-    fetch(`${API_BASE}/api/budget/allocation?deptId=${deptId}`, {
+    fetch(`${API_BASE}/api/budget/allocation?deptId=${deptId}&year=${year}`, {
       headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
     })
       .then(res => {
@@ -98,7 +98,7 @@ export default function BudgetAllocationPage({ deptId }) {
       .then(json => setData(json))
       .catch(() => setError('예산 배정 현황을 불러오지 못했습니다.'))
       .finally(() => setLoading(false));
-  }, [deptId]);
+  }, [deptId, year]);
 
   const toggleGroup = (절명) => {
     setCollapsed(prev => {

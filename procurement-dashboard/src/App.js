@@ -12,6 +12,7 @@ import SimulationPage from './pages/SimulationPage';
 import IndicatorStatusPage from './pages/IndicatorStatusPage';
 import IndicatorDetailPage from './pages/IndicatorDetailPage';
 import BudgetAllocationPage from './pages/BudgetAllocationPage';
+import BudgetExecutionTrendPage from './pages/BudgetExecutionTrendPage';
 import UploadHistoryPage from './pages/UploadHistoryPage';
 import GuideListPage from './pages/GuideListPage';
 import GuideDetailPage from './pages/GuideDetailPage';
@@ -50,6 +51,8 @@ function AppLayout({ onLogout }) {
   const [departments, setDepartments]         = useState([]);
   const [loadingDepts, setLoadingDepts]       = useState(true);
   const [deptId, setDeptId]                   = useState(null);
+  const [years, setYears]                     = useState([]);
+  const [selectedYear, setSelectedYear]       = useState(null);
   const [apiRowsMap, setApiRowsMap]           = useState({});
   const [loadingRows, setLoadingRows]         = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -57,10 +60,10 @@ function AppLayout({ onLogout }) {
 
   // ── API 조회 헬퍼 ───────────────────────────────────────────────────────────
 
-  const fetchRows = useCallback((id) => {
-    if (!id) return;
+  const fetchRows = useCallback((id, year) => {
+    if (!id || !year) return;
     setLoadingRows(true);
-    fetch(`${API_BASE}/api/purchases/list?deptId=${id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+    fetch(`${API_BASE}/api/purchases/list?deptId=${id}&year=${year}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
       .then(r => r.json())
       .then(data => setApiRowsMap(prev => ({ ...prev, [id]: data.rows ?? [] })))
       .catch(e => console.error('지출내역 조회 실패:', e))
@@ -80,28 +83,41 @@ function AppLayout({ onLogout }) {
       .finally(() => setLoadingDepts(false));
   }, []);
 
-  // ── 부서 변경 시 지출내역 조회 ───────────────────────────────────────────────
+  // ── 초기화: 회계연도 목록 ────────────────────────────────────────────────────
 
   useEffect(() => {
-    fetchRows(deptId);
-  }, [deptId, fetchRows]);
+    fetch(`${API_BASE}/api/years`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+      .then(r => r.json())
+      .then(data => {
+        setYears(data);
+        if (data.length > 0) setSelectedYear(data[0]);
+      })
+      .catch(e => console.error('회계연도 목록 조회 실패:', e));
+  }, []);
 
-  // ── 부서 변경 시 잔여예산 조회 ───────────────────────────────────────────────
+  // ── 부서/회계연도 변경 시 지출내역 조회 ─────────────────────────────────────
 
   useEffect(() => {
-    if (!deptId) return;
-    fetch(`${API_BASE}/api/budget/remaining?deptId=${deptId}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+    fetchRows(deptId, selectedYear);
+  }, [deptId, selectedYear, fetchRows]);
+
+  // ── 부서/회계연도 변경 시 잔여예산 조회 ──────────────────────────────────────
+
+  useEffect(() => {
+    if (!deptId || !selectedYear) return;
+    fetch(`${API_BASE}/api/budget/remaining?deptId=${deptId}&year=${selectedYear}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
       .then(r => r.json())
       .then(data => setBudgetSummary({ allocatedBudget: data.allocatedBudget, remainingBudget: data.remainingBudget }))
       .catch(e => console.error('잔여예산 조회 실패:', e));
-  }, [deptId]);
+  }, [deptId, selectedYear]);
 
   // ── 이벤트 핸들러 ───────────────────────────────────────────────────────────
 
   const handleDeptChange = (e) => setDeptId(Number(e.target.value));
+  const handleYearChange = (e) => setSelectedYear(Number(e.target.value));
 
   const handleDataLoad = () => {
-    fetchRows(deptId);
+    fetchRows(deptId, selectedYear);
     setShowUploadModal(false);
   };
 
@@ -176,6 +192,13 @@ function AppLayout({ onLogout }) {
                 ))}
               </select>
             )}
+            {years.length > 0 && (
+              <select value={selectedYear ?? ''} onChange={handleYearChange} style={S.deptSelect}>
+                {years.map(y => (
+                  <option key={y} value={y}>{y}년</option>
+                ))}
+              </select>
+            )}
             {selectedDept && (
               <span style={S.groupBadge}>{selectedDept.group_name}</span>
             )}
@@ -209,8 +232,7 @@ function AppLayout({ onLogout }) {
               ) : <ComingSoon title="데이터 없음" />
             } />
 
-            <Route path="/budget/allocation" element={<BudgetAllocationPage deptId={deptId} />} />
-            <Route path="/budget/execution"  element={<ComingSoon title="예산 집행액" />} />
+            <Route path="/budget/allocation" element={<BudgetAllocationPage deptId={deptId} year={selectedYear} />} />
 
             <Route path="/procurement/indicators" element={
               result
@@ -223,7 +245,8 @@ function AppLayout({ onLogout }) {
                 rows={activeRows}
                 excludedSet={excludedSetFromApi}
                 deptId={deptId}
-                onRefresh={() => fetchRows(deptId)}
+                onRefresh={() => fetchRows(deptId, selectedYear)}
+                onOpenUpload={() => setShowUploadModal(true)}
               />
             } />
 
@@ -240,7 +263,7 @@ function AppLayout({ onLogout }) {
             <Route path="/regulations"     element={<GuideListPage />} />
             <Route path="/regulations/:id" element={<GuideDetailPage />} />
 
-            <Route path="/budget/trend" element={<ComingSoon title="집행 추이 분석" />} />
+            <Route path="/budget/trend" element={<BudgetExecutionTrendPage deptId={deptId} year={selectedYear} />} />
 
             <Route path="/data/uploads"  element={<UploadHistoryPage deptId={deptId} />} />
             <Route path="/data/vendors"  element={<VendorList />} />

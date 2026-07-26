@@ -4,6 +4,25 @@ const { pool }     = require('../db/database');
 
 const router = express.Router();
 
+// ── 공공구매 실적에서 자동 제외할 예산명 키워드 ─────────────────────────────────
+// (체크박스로 사용자가 제외하는 것과 별개로, 이 키워드가 예산명에 포함되면
+//  공공구매 실적/지출결의 내역 조회 시 쿼리 단계에서 항상 걸러진다.
+//  DB에는 그대로 남아있고, 집행추이분석(execution-trend) 등 다른 용도에는 영향 없음)
+
+const EXCLUDED_BUDGET_KEYWORDS = [
+  '공공요금및제세', '급식비', '특근매식비', '일숙직비', '임차료', '학교운영비',
+  '복리후생비', '시험연구비', '기타운영비', '여비', '특수활동비', '업무추진비',
+];
+
+const EXCLUDED_BUDGET_SQL = EXCLUDED_BUDGET_KEYWORDS
+  .map(k => `예산명 LIKE '%${k}%'`)
+  .join(' OR ');
+
+function hasExcludedBudgetKeyword(예산명) {
+  const name = 예산명 ?? '';
+  return EXCLUDED_BUDGET_KEYWORDS.some(k => name.includes(k));
+}
+
 // ── 컬럼 매핑 ─────────────────────────────────────────────────────────────────
 
 const DB_TO_CALC = {
@@ -61,6 +80,7 @@ function sessionRawToCalcRow(row, excludedNos) {
 function manualToCalcRow(row) {
   const f = (long, short) => row[long] ?? row[short] ?? 'N';
   return {
+    '회계연도':                 row['회계연도']              ?? new Date().getFullYear(),
     '구매구분':                 row['구매구분']              ?? '물품',
     '물품금액':                 Number(row['물품금액'])       || 0,
     '채주지급금액':             0,
@@ -120,14 +140,31 @@ router.get('/list', sessionAuth, async (req, res, next) => {
     const deptId = req.query.deptId;
     if (!deptId) return res.status(400).json({ message: 'deptId가 필요합니다.' });
 
+    let year = req.query.year ? Number(req.query.year) : null;
+    if (!year) {
+      const { rows: maxYearRows } = await pool.query(
+        'SELECT MAX(회계연도) AS max_year FROM raw_purchases WHERE dept_id = $1',
+        [deptId],
+      );
+      year = maxYearRows[0].max_year ?? new Date().getFullYear();
+    }
+
     const tempData = getTempData(req.user.sessionId);
     const { uploadedRows, manualRows, excludedNos, rowEdits, deletedNos } = getDeptSession(tempData, deptId);
 
-    // DB 읽기 (읽기전용)
+    // DB 읽기 (읽기전용) — 회계연도로 필터링 + 제외 예산명 키워드 필터링
     const { rows: dbRows } = await pool.query(
-      'SELECT * FROM raw_purchases WHERE dept_id = $1 ORDER BY uploaded_at ASC',
-      [deptId],
+      `SELECT * FROM raw_purchases
+       WHERE dept_id = $1 AND 회계연도 = $2 AND NOT (${EXCLUDED_BUDGET_SQL})
+       ORDER BY uploaded_at ASC`,
+      [deptId, year],
     );
+
+    // 세션 업로드/수기 행도 동일 회계연도만 대상으로, 제외 예산명 키워드도 동일하게 필터링
+    const uploadedRowsInYear = uploadedRows
+      .filter(r => Number(r['회계연도']) === year)
+      .filter(r => !hasExcludedBudgetKeyword(r['예산명']));
+    const manualRowsInYear   = manualRows.filter(r => Number(r['회계연도'] ?? new Date().getFullYear()) === year);
 
     // DB 행: 삭제·수정·제외 오버레이 적용
     const rawFromDb = dbRows
@@ -138,7 +175,7 @@ router.get('/list', sessionAuth, async (req, res, next) => {
       });
 
     // 세션 업로드 행: 삭제·수정·제외 오버레이 적용
-    const rawFromSession = uploadedRows
+    const rawFromSession = uploadedRowsInYear
       .filter(r => !deletedNos.has(String(r['결의번호'] ?? '')))
       .map(r => {
         const bizNo = String(r['결의번호'] ?? '');
@@ -146,12 +183,13 @@ router.get('/list', sessionAuth, async (req, res, next) => {
       });
 
     // 수기 행
-    const calcManual = manualRows.map(manualToCalcRow);
+    const calcManual = manualRowsInYear.map(manualToCalcRow);
 
     res.json({
       rows:        [...rawFromDb, ...rawFromSession, ...calcManual],
-      rawCount:    dbRows.length + uploadedRows.length,
-      manualCount: manualRows.length,
+      rawCount:    dbRows.length + uploadedRowsInYear.length,
+      manualCount: manualRowsInYear.length,
+      year,
     });
   } catch (err) {
     next(err);
@@ -185,7 +223,8 @@ router.post('/upload', sessionAuth, async (req, res, next) => {
       if (!bizNo || existingNos.has(bizNo)) { skipped++; continue; }
       existingNos.add(bizNo);
       if (!tempData.uploadedRows[deptId]) tempData.uploadedRows[deptId] = [];
-      tempData.uploadedRows[deptId].push(row);
+      // 엑셀의 회계연도 컬럼 값을 그대로 저장, 없으면 현재 연도로 기본값 처리
+      tempData.uploadedRows[deptId].push({ ...row, '회계연도': row['회계연도'] ?? new Date().getFullYear() });
       added++;
     }
 
