@@ -367,7 +367,10 @@ const AS = {
 
 // ── 우측 상단 패널: 도넛차트 + 달성/미달성 현황 ──────────────────────────────
 
-function RightTopPanel({ results }) {
+// 도넛차트 4개 카테고리 색상 (물품/용역/공사/온누리상품권)
+const DONUT_COLORS = [COLOR.primary, COLOR.success, COLOR.warning, '#faad14'];
+
+function RightTopPanel({ results, rows, stats }) {
   const [showAchievedModal,    setShowAchievedModal]    = useState(false);
   const [showNotAchievedModal, setShowNotAchievedModal] = useState(false);
 
@@ -379,10 +382,22 @@ function RightTopPanel({ results }) {
   const top3achieved    = achieved.slice(0, 3);
   const top3notAchieved = notAchieved.slice(0, 3);
 
-  const pieData = [
-    { name: '달성',   value: Math.max(achieved.length, 0.001)    },
-    { name: '미달성', value: Math.max(notAchieved.length, 0.001) },
+  // raw 지출내역(제외여부/키워드 필터링 없이)을 구매구분만으로 그룹핑한 합계
+  const sumByType = (type) => rows
+    .filter(r => r.__source === 'raw' && r['구매구분'] === type)
+    .reduce((s, r) => s + (Number(r['물품금액']) || 0), 0);
+
+  // 온누리상품권은 raw 재계산이 아니라 calcEngine 결과(results)를 그대로 재사용
+  const onnuriActual = results.find(r => r.key === 'onnuri_voucher')?.actual ?? 0;
+
+  const donutRaw = [
+    { name: '물품',         value: sumByType('물품') },
+    { name: '용역',         value: sumByType('용역') },
+    { name: '공사',         value: sumByType('공사') },
+    { name: '온누리상품권', value: onnuriActual },
   ];
+  const donutTotal = donutRaw.reduce((s, d) => s + d.value, 0);
+  const donutData  = donutTotal > 0 ? donutRaw : donutRaw.map(d => ({ ...d, value: 0.001 }));
 
   return (
     <div style={{ ...S.card, display: 'flex', flexDirection: 'column', height: '100%', padding: 0, overflow: 'hidden' }}>
@@ -395,7 +410,7 @@ function RightTopPanel({ results }) {
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie
-                data={pieData}
+                data={donutData}
                 innerRadius={60}
                 outerRadius={90}
                 dataKey="value"
@@ -404,8 +419,7 @@ function RightTopPanel({ results }) {
                 stroke="#fff"
                 strokeWidth={2}
               >
-                <Cell fill={COLOR.success} />
-                <Cell fill={achieved.length === results.length ? '#d9f7ee' : COLOR.danger} />
+                {donutData.map((d, i) => <Cell key={d.name} fill={DONUT_COLORS[i]} />)}
               </Pie>
             </PieChart>
           </ResponsiveContainer>
@@ -414,13 +428,14 @@ function RightTopPanel({ results }) {
             transform: 'translate(-50%, -50%)',
             textAlign: 'center', pointerEvents: 'none',
           }}>
-            <div style={{ fontSize: 22, fontWeight: 800, color: COLOR.text, lineHeight: 1.2 }}>달성 {achieved.length}</div>
-            <div style={{ fontSize: 12, color: COLOR.subtext, marginTop: 4 }}>전체 {results.length}개</div>
+            <div style={{ fontSize: 12, color: COLOR.subtext }}>공공구매 실적</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: COLOR.text, lineHeight: 1.3, marginTop: 2 }}>{KRW(stats?.totalPurchase)}</div>
           </div>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 20, fontSize: 12, color: COLOR.subtext }}>
-          <span><span style={{ ...S.dot, background: COLOR.success }} />달성 {achieved.length}개</span>
-          <span><span style={{ ...S.dot, background: COLOR.danger }} />미달성 {notAchieved.length}개</span>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '4px 14px', fontSize: 12, color: COLOR.subtext }}>
+          {donutRaw.map((d, i) => (
+            <span key={d.name}><span style={{ ...S.dot, background: DONUT_COLORS[i] }} />{d.name}</span>
+          ))}
         </div>
       </div>
 
@@ -876,7 +891,7 @@ export default function Dashboard({ results, totalScore, finalScore, stats, rows
 
         {/* 우측 50%: 도넛차트 + 달성/미달성 현황 */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-          <RightTopPanel results={results} />
+          <RightTopPanel results={results} rows={rows} stats={stats} />
         </div>
 
       </div>

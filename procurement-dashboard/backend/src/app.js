@@ -12,6 +12,7 @@ const departmentsRoute = require('./routes/departments');
 const budgetRoute       = require('./routes/budget');
 const uploadsRoute      = require('./routes/uploads');
 const guidesRoute       = require('./routes/guides');
+const yearsRoute        = require('./routes/years');
 
 const app  = express();
 const PORT = process.env.PORT || 4000;
@@ -33,6 +34,7 @@ app.use('/api/departments', departmentsRoute);
 app.use('/api/budget',      budgetRoute);
 app.use('/api/uploads',     uploadsRoute);
 app.use('/api/guides',      guidesRoute);
+app.use('/api/years',       yearsRoute);
 
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
 

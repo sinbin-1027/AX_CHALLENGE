@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import kosmeLogo from '../assets/kosme_logo.png';
 
 const NAV = [
   {
@@ -14,7 +15,6 @@ const NAV = [
     label: '예산관리',
     children: [
       { key: 'budget-alloc',  label: '예산 배정 현황', path: '/budget/allocation' },
-      { key: 'budget-exec',   label: '예산 집행 현황', path: '/budget/execution'  },
       { key: 'budget-trend',  label: '집행 추이 분석', path: '/budget/trend'      },
     ],
   },
@@ -47,33 +47,10 @@ const NAV = [
   },
 ];
 
-function getActiveParentKey(pathname) {
-  const parent = NAV.find(item => item.children?.some(c => c.path === pathname));
-  return parent?.key ?? null;
-}
-
 export default function Sidebar() {
   const { pathname } = useLocation();
   const [collapsed, setCollapsed] = useState(false);
-  const [openKeys, setOpenKeys] = useState(() => {
-    const k = getActiveParentKey(pathname);
-    return k ? new Set([k]) : new Set();
-  });
-
-  // 페이지 이동 시 해당 상위 메뉴 자동 오픈
-  useEffect(() => {
-    const k = getActiveParentKey(pathname);
-    if (k) setOpenKeys(prev => new Set([...prev, k]));
-  }, [pathname]);
-
-  const toggle = key => {
-    if (collapsed) return;
-    setOpenKeys(prev => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
-  };
+  const [logoHover, setLogoHover] = useState(false);
 
   const isChildActive = item => item.children?.some(c => c.path === pathname);
 
@@ -81,9 +58,16 @@ export default function Sidebar() {
     <div style={{ ...S.sidebar, width: collapsed ? 60 : 230 }}>
 
       {/* 로고 */}
-      <div style={S.logo}>
-        {collapsed ? <span style={S.logoIcon}>K</span> : <span style={S.logoText}>KOSME 예산 관리 시스템</span>}
-      </div>
+      <Link to="/" style={{ textDecoration: 'none' }}>
+        <div
+          style={{ ...S.logo, ...(logoHover ? S.logoHover : {}) }}
+          onMouseEnter={() => setLogoHover(true)}
+          onMouseLeave={() => setLogoHover(false)}
+        >
+          <img src={kosmeLogo} alt="KOSME" style={collapsed ? S.logoImgCollapsed : S.logoImg} />
+          {!collapsed && <span style={S.logoSubText}>예산관리시스템</span>}
+        </div>
+      </Link>
 
       {/* 네비게이션 */}
       <nav style={S.nav}>
@@ -101,25 +85,18 @@ export default function Sidebar() {
           }
 
           const parentActive = isChildActive(item);
-          const isOpen = openKeys.has(item.key);
 
           return (
             <div key={item.key}>
               <div
-                style={{ ...S.item, ...(parentActive && !isOpen ? S.itemParentActive : {}) }}
-                onClick={() => toggle(item.key)}
+                style={{ ...S.item, ...S.itemSection, ...(parentActive ? S.itemParentActive : {}) }}
                 title={collapsed ? item.label : ''}
               >
                 <span style={S.icon}>{item.icon}</span>
-                {!collapsed && (
-                  <>
-                    <span style={S.itemLabel}>{item.label}</span>
-                    <span style={S.arrow}>{isOpen ? '▲' : '▼'}</span>
-                  </>
-                )}
+                {!collapsed && <span style={S.itemLabel}>{item.label}</span>}
               </div>
 
-              {!collapsed && isOpen && (
+              {!collapsed && (
                 <div style={S.subMenu}>
                   {item.children.map(child => {
                     const active = pathname === child.path;
@@ -150,7 +127,7 @@ export default function Sidebar() {
 
 const S = {
   sidebar: {
-    background: '#1B2B4B',
+    background: '#013693',
     minHeight: '100vh',
     height: '100vh',
     display: 'flex',
@@ -163,19 +140,25 @@ const S = {
   },
   logo: {
     display: 'flex',
+    flexDirection: 'column',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
     padding: '20px 14px 18px',
-    borderBottom: '1px solid rgba(255,255,255,0.08)',
+    borderBottom: '1px solid rgba(255,255,255,0.12)',
     minHeight: 64,
+    cursor: 'pointer',
+    transition: 'opacity 0.15s',
   },
-  logoIcon: { fontSize: 18, fontWeight: 800, color: '#fff', flexShrink: 0 },
-  logoText: {
-    color: '#fff',
-    fontSize: 13,
+  logoHover: { opacity: 0.85 },
+  logoImg:          { width: '100%', maxWidth: 160, height: 'auto', display: 'block', margin: '0 auto' },
+  logoImgCollapsed: { width: 32, height: 'auto', display: 'block', margin: '0 auto' },
+  logoSubText: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 15,
     fontWeight: 700,
+    letterSpacing: '0.2px',
     whiteSpace: 'nowrap',
-    letterSpacing: '-0.2px',
+    textAlign: 'center',
   },
   nav: {
     flex: 1,
@@ -190,16 +173,16 @@ const S = {
     padding: '9px 10px',
     borderRadius: 8,
     cursor: 'pointer',
-    color: 'rgba(255,255,255,0.65)',
+    color: 'rgba(255,255,255,0.7)',
     marginBottom: 2,
     transition: 'background 0.12s',
     minHeight: 38,
   },
-  itemActive:       { background: '#3182F6', color: '#fff' },
+  itemSection:      { cursor: 'default' },
+  itemActive:       { background: 'rgba(255,255,255,0.16)', color: '#fff' },
   itemParentActive: { color: '#fff' },
   icon:      { fontSize: 13, fontWeight: 700, flexShrink: 0, width: 20, textAlign: 'center' },
   itemLabel: { fontSize: 13, fontWeight: 500, flex: 1, whiteSpace: 'nowrap' },
-  arrow:     { fontSize: 9, color: 'rgba(255,255,255,0.35)', flexShrink: 0 },
   subMenu:   { paddingLeft: 4, marginBottom: 4 },
   subItem: {
     display: 'flex',
@@ -208,13 +191,13 @@ const S = {
     padding: '7px 10px 7px 30px',
     borderRadius: 6,
     cursor: 'pointer',
-    color: 'rgba(255,255,255,0.5)',
+    color: 'rgba(255,255,255,0.6)',
     fontSize: 12,
     marginBottom: 1,
     transition: 'background 0.12s, color 0.12s',
     whiteSpace: 'nowrap',
   },
-  subItemActive: { background: '#3182F6', color: '#fff' },
+  subItemActive: { background: 'rgba(255,255,255,0.16)', color: '#fff' },
   subDot: {
     width: 4, height: 4, borderRadius: '50%',
     background: 'currentColor', flexShrink: 0,
@@ -224,9 +207,9 @@ const S = {
     alignItems: 'center',
     gap: 8,
     padding: '14px 14px',
-    borderTop: '1px solid rgba(255,255,255,0.08)',
+    borderTop: '1px solid rgba(255,255,255,0.12)',
     cursor: 'pointer',
-    color: 'rgba(255,255,255,0.45)',
+    color: 'rgba(255,255,255,0.55)',
     fontSize: 13,
     transition: 'color 0.12s',
     flexShrink: 0,

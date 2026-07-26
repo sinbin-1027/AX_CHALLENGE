@@ -23,7 +23,7 @@ const KRW = (n) => (Number(n) ? Math.round(Number(n)).toLocaleString('ko-KR') + 
 const fmtDate = (v) => {
   if (!v) return '-';
   const n = Number(v);
-  if (!n) return String(v);
+  if (!n) return String(v).slice(0, 10);
   const d = new Date(Math.round((n - 25569) * 86400 * 1000));
   const p = (x) => String(x).padStart(2, '0');
   return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`;
@@ -32,7 +32,7 @@ const fmtDate = (v) => {
 const toDateInput = (v) => {
   if (!v && v !== 0) return '';
   const n = Number(v);
-  if (!n) return String(v);
+  if (!n) return String(v).slice(0, 10);
   const d = new Date(Math.round((n - 25569) * 86400 * 1000));
   const p = (x) => String(x).padStart(2, '0');
   return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`;
@@ -109,17 +109,13 @@ function EditPanel({ mode, draft, selectedRow, onChange, onToggleFlag, onConfirm
   }
 
   const isAdd = mode === 'add';
-  const isRaw = selectedRow?.__source === 'raw';
-  const rowId = isAdd ? null
-              : isRaw ? (selectedRow?.['결의번호'] ?? selectedRow?.__결의번호 ?? '')
-              : '수기입력';
-  const title = isAdd ? '새 행 입력' : `행 수정 — ${rowId}`;
+  const title = isAdd ? '새 행 입력' : '수정';
   const isN   = draft['집행구분'] === 'N';
 
   return (
-    <div style={F.card}>
+    <div style={{ ...F.card, ...(isAdd ? F.cardAdd : {}) }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <span style={F.title}>{title}</span>
+        <span style={{ ...F.title, ...(isAdd ? F.titleAdd : {}) }}>{title}</span>
         <button onClick={onCancel} style={F.closeBtnX}>✕</button>
       </div>
       <div style={F.grid}>
@@ -255,7 +251,7 @@ function Toast({ message }) {
 }
 
 // ── 메인 페이지 ──────────────────────────────────────────────────────────────
-export default function DetailsPage({ rows, excludedSet: excludedSetProp = new Set(), deptId, onRefresh }) {
+export default function DetailsPage({ rows, excludedSet: excludedSetProp = new Set(), deptId, onRefresh, onOpenUpload }) {
   const [excludedSet, setExcludedSet] = useState(new Set());
   const [sortConfig, setSortConfig]   = useState({ key: null, direction: null });
   const [panelMode, setPanelMode]     = useState('idle');  // 'idle' | 'add' | 'edit'
@@ -397,24 +393,6 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
     }
   };
 
-  const handleReset = async () => {
-    if (!window.confirm('업로드/수기입력 데이터를 모두 초기화할까요?')) return;
-    try {
-      const res = await fetch(`${API_BASE}/api/purchases/reset?deptId=${deptId}`, {
-        ...FETCH_OPTS,
-        method: 'DELETE',
-      });
-      if (!res.ok) throw new Error('초기화 실패');
-      setExcludedSet(new Set());
-      handleClosePanel();
-      onRefresh?.();
-      showToast('초기화되었습니다');
-    } catch (e) {
-      alert('초기화 중 오류가 발생했습니다.');
-      console.error(e);
-    }
-  };
-
   const handleSort = (key) => {
     setSortConfig(prev => {
       if (prev.key !== key)          return { key, direction: 'asc' };
@@ -472,7 +450,7 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button style={P.resetBtn}   onClick={handleReset}>초기화</button>
+            <button style={P.addBtn}     onClick={() => onOpenUpload?.()}>데이터 업데이트</button>
             <button style={P.addBtn}     onClick={handleOpenAdd}>+ 행 추가</button>
             <button style={P.refreshBtn} onClick={() => { onRefresh?.(); showToast('조회되었습니다'); }}>조회</button>
             <button style={P.saveBtn}    onClick={handleSave}>{isDirty ? '저장 *' : '저장'}</button>
@@ -576,7 +554,6 @@ const P = {
   excludeBadge: { marginLeft: 10, background: '#FFF0F1', color: '#F04452', padding: '2px 8px', borderRadius: 99, fontSize: 12, fontWeight: 600 },
   addBtn:       { padding: '9px 18px', background: '#3182F6', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer' },
   saveBtn:      { padding: '9px 18px', background: '#00B493', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer' },
-  resetBtn:     { padding: '9px 14px', background: '#FFFFFF', color: '#F04452', border: '1px solid #F2F4F6', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' },
   refreshBtn:   { padding: '9px 18px', background: '#FFFFFF', color: '#3182F6', border: '1px solid #3182F6', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer' },
   legend:       { display: 'flex', gap: 16, alignItems: 'center', marginBottom: 10, fontSize: 12, color: '#8B95A1' },
   dot:          { display: 'inline-block', width: 12, height: 12, borderRadius: 3, marginRight: 4 },
@@ -590,8 +567,10 @@ const P = {
 
 const F = {
   card:      { background: '#FFFFFF', borderRadius: 14, padding: '14px 18px', marginBottom: 10, border: '1px solid #EBF3FE', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' },
+  cardAdd:   { border: '2px solid #faad14' },
   idlePanel: { padding: '14px 18px', border: '1.5px dashed #E2E8F0', borderRadius: 12, textAlign: 'center', color: '#94a3b8', fontSize: 13, marginBottom: 10 },
   title:     { fontSize: 14, fontWeight: 700, color: '#191F28' },
+  titleAdd:  { color: '#faad14' },
   grid:      { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px 14px', marginBottom: 10 },
   field:     { display: 'flex', flexDirection: 'column', gap: 3 },
   label:     { fontSize: 12, fontWeight: 600, color: '#8B95A1' },
