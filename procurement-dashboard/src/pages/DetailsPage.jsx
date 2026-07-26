@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import AmountText from '../components/AmountText';
 
 const API_BASE = process.env.REACT_APP_API_URL || '';
 
@@ -17,8 +18,6 @@ const CALC_TO_DB_COL = {
   '신제품인증(NEP) 대상품목': '신제품인증NEP대상품목',
 };
 function toDbColName(k) { return CALC_TO_DB_COL[k] ?? k; }
-
-const KRW = (n) => (Number(n) ? Math.round(Number(n)).toLocaleString('ko-KR') + '원' : '-');
 
 const fmtDate = (v) => {
   if (!v) return '-';
@@ -222,7 +221,7 @@ function TableRow({ row, index, excluded, isSelected, onRowClick, onToggleExclud
               color:      isN ? '#ff4d4f' : '#52c41a',
               border:     `1px solid ${isN ? '#ffa39e' : '#b7eb8f'}`,
             }}>{row[c.key] || 'Y'}</span>
-          ) : c.key === '물품금액' ? KRW(row[c.key])
+          ) : c.key === '물품금액' ? (Number(row[c.key]) ? <AmountText value={row[c.key]} /> : '-')
             : c.fmt ? c.fmt(row[c.key])
             : (row[c.key] || '-')}
         </td>
@@ -441,11 +440,11 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
       <div style={P.stickyTop}>
         <div style={P.header}>
           <div>
-            <div style={P.pageTitle}>지출 내역</div>
+            <div style={P.pageTitle}>구매 실적 등록</div>
             <div style={P.pageSub}>
-              전체 {rows.length.toLocaleString()}건 · {KRW(total)}
+              전체 {rows.length.toLocaleString()}건 · <AmountText value={total} />
               {excludedSet.size > 0 && (
-                <span style={P.excludeBadge}>모수 제외 {excludedSet.size}건 ({KRW(excludedTotal)})</span>
+                <span style={P.excludeBadge}>모수 제외 {excludedSet.size}건 (<AmountText value={excludedTotal} />)</span>
               )}
             </div>
           </div>
@@ -534,7 +533,7 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
             <tfoot>
               <tr style={{ background: '#f5f5f5', fontWeight: 700 }}>
                 <td style={{ ...P.td, textAlign: 'center' }} colSpan={TABLE_COLS.length + 1}>합계</td>
-                <td style={{ ...P.td, textAlign: 'right', color: '#1677ff' }}>{KRW(total)}</td>
+                <td style={{ ...P.td, textAlign: 'right', color: '#1677ff' }}><AmountText value={total} /></td>
                 <td style={P.td} />
               </tr>
             </tfoot>

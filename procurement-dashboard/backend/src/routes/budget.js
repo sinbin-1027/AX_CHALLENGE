@@ -30,18 +30,17 @@ function getElapsedDays(year) {
 }
 
 // 연말 예상 총지출(spentSoFar + dailyAvg * daysRemainingInYear) 기준으로
-// 부족/불용/onTrack 3분기 (라이브 카드·스냅샷 카드 공통 — 4개 카드 전부 동일 공식)
+// 부족/불용 2분기 (라이브 카드·스냅샷 카드 공통 — 4개 카드 전부 동일 공식)
+// allocatedTotal이 0 이하인 경우만 판단 불가로 onTrack 유지, 그 외에는 diff 부호로 무조건 shortage/underspend 중 하나로 분류
 function computeForecast({ allocatedTotal, spentSoFar, dailyAvg, daysRemainingInYear }) {
   if (dailyAvg == null) return null;
   if (allocatedTotal <= 0) return { type: 'onTrack' };
 
   const projectedTotal = spentSoFar + dailyAvg * daysRemainingInYear;
   const diff = projectedTotal - allocatedTotal;
-  const tolerance = allocatedTotal * 0.05;
 
-  if (diff > tolerance)  return { type: 'shortage',   amount: diff };
-  if (diff < -tolerance) return { type: 'underspend', amount: -diff };
-  return { type: 'onTrack' };
+  if (diff >= 0) return { type: 'shortage',   amount: diff };
+  return { type: 'underspend', amount: -diff };
 }
 
 // ── 집행추이분석: 스냅샷 기반(국내여비/국외업무여비) 헬퍼 ───────────────────

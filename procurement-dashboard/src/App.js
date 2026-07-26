@@ -236,7 +236,7 @@ function AppLayout({ onLogout }) {
 
             <Route path="/procurement/indicators" element={
               result
-                ? <IndicatorStatusPage stats={result.stats} finalScore={result.finalScore} results={result.results} rows={activeRows} isYeonsoo={isYeonsoo} />
+                ? <IndicatorStatusPage stats={{ ...result.stats, ...budgetSummary }} finalScore={result.finalScore} maxScore={selectedDept?.score_weight} results={result.results} rows={activeRows} isYeonsoo={isYeonsoo} />
                 : <ComingSoon title="지표 현황" />
             } />
             <Route path="/procurement/details"  element={<IndicatorDetailPage rows={activeRows} results={result?.results ?? []} isYeonsoo={isYeonsoo} />} />
@@ -330,8 +330,8 @@ export default function App() {
 }
 
 const S = {
-  root:       { display: 'flex', minHeight: '100vh', fontFamily: "-apple-system, 'Pretendard', 'Apple SD Gothic Neo', sans-serif" },
-  main:       { flex: 1, display: 'flex', flexDirection: 'column', background: '#F9FAFB', minWidth: 0 },
+  root:       { display: 'flex', height: '100vh', overflow: 'hidden', fontFamily: "-apple-system, 'Pretendard', 'Apple SD Gothic Neo', sans-serif" },
+  main:       { flex: 1, display: 'flex', flexDirection: 'column', background: '#F9FAFB', minWidth: 0, minHeight: 0 },
   header:     { background: '#FFFFFF', borderBottom: '1px solid #F2F4F6', padding: '0 28px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 },
   headerLeft: { display: 'flex', alignItems: 'center', gap: 14 },
   deptSelect: { padding: '6px 12px', border: '1px solid #E5E8EB', borderRadius: 8, fontSize: 14, fontWeight: 600, color: '#191F28', cursor: 'pointer', background: '#fff', outline: 'none' },
@@ -340,7 +340,7 @@ const S = {
   headerRight:{ display: 'flex', alignItems: 'center', gap: 10 },
   updateBtn:  { padding: '6px 16px', background: '#3182F6', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' },
   logoutBtn:  { padding: '6px 14px', background: '#fff', color: '#8B95A1', border: '1px solid #E5E8EB', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer' },
-  content:    { flex: 1, padding: '24px 28px', overflowY: 'auto' },
+  content:    { flex: 1, minHeight: 0, padding: '24px 28px', overflowY: 'auto' },
   modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 },
   modalCard:    { background: '#fff', borderRadius: 16, width: 560, maxWidth: '92vw', boxShadow: '0 20px 60px rgba(0,0,0,0.18)', overflow: 'hidden' },
   modalHeader:  { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid #F2F4F6' },

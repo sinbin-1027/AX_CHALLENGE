@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { DetailModal, TargetModal } from '../components/Dashboard';
+import AmountText from '../components/AmountText';
 
-const KRW = (n) => n == null ? '-' : Math.round(n).toLocaleString('ko-KR') + '원';
 const PCT = (r) => r == null ? '-' : (r * 100).toFixed(1) + '%';
 
 const GROUPS = [
@@ -44,7 +44,17 @@ const GROUPS = [
 ];
 
 // ── KPI 카드 ─────────────────────────────────────────────────────────────────
-function KpiCard({ title, value, unit, sub, valueColor, onClick }) {
+function KpiCard({ title, value, unit, sub, valueColor, onClick, variant }) {
+  if (variant === 'score') {
+    return (
+      <div style={{ ...S.kpiCard, ...S.kpiCardScore }}>
+        <div style={{ ...S.kpiTitle, justifyContent: 'center' }}>{title}</div>
+        <div style={{ ...S.kpiValue, ...S.kpiValueScore, color: valueColor ?? '#191F28' }}>{value}</div>
+        {sub && <div style={S.kpiSub}>{sub}</div>}
+      </div>
+    );
+  }
+
   return (
     <div
       style={{ ...S.kpiCard, ...(onClick ? S.kpiCardClickable : {}) }}
@@ -87,16 +97,16 @@ function IndicatorCard({ r }) {
 
       <div style={S.indRow}>
         <span style={S.indLbl}>목표액</span>
-        <span style={S.indVal}>{noTarget ? '-' : KRW(r.targetAmount)}</span>
+        <span style={S.indVal}>{noTarget ? '-' : <AmountText value={r.targetAmount} />}</span>
       </div>
       <div style={S.indRow}>
         <span style={S.indLbl}>지출액</span>
-        <span style={S.indVal}>{KRW(r.actual)}</span>
+        <span style={S.indVal}><AmountText value={r.actual} /></span>
       </div>
       <div style={S.indRow}>
         <span style={S.indLbl}>부족액</span>
         <span style={{ ...S.indVal, color: shortfall > 0 ? '#F04452' : '#8B95A1', fontWeight: shortfall > 0 ? 700 : 500 }}>
-          {noTarget ? '-' : shortfall > 0 ? KRW(shortfall) : '달성'}
+          {noTarget ? '-' : shortfall > 0 ? <AmountText value={shortfall} /> : '달성'}
         </span>
       </div>
 
@@ -116,18 +126,24 @@ function IndicatorCard({ r }) {
 }
 
 // ── 메인 페이지 ──────────────────────────────────────────────────────────────
-export default function IndicatorStatusPage({ stats, finalScore, results, rows = [], isYeonsoo = false }) {
+export default function IndicatorStatusPage({ stats, finalScore, maxScore, results, rows = [], isYeonsoo = false }) {
   const [showDetail,      setShowDetail]      = useState(false);
   const [showTargetModal, setShowTargetModal] = useState(false);
 
   const list      = results ?? [];
   const resultMap = Object.fromEntries(list.map(r => [r.key, r]));
-  const achieved  = list.filter(r => r.achieved);
-  const total     = list.length;
 
   const scoreColor = (finalScore ?? 0) >= 3 ? '#00B493'
                    : (finalScore ?? 0) >= 2 ? '#FF6B00'
                    : '#F04452';
+
+  const allocatedBudgetKnown = stats?.allocatedBudget != null;
+  const remainingBudgetKnown = stats?.remainingBudget != null;
+
+  // 공공구매부족액: 목표액이 있는 지표들의 (목표액-실적) 합산 (초과분은 0 처리)
+  const totalShortfall = list
+    .filter(r => r.targetAmount > 0)
+    .reduce((s, r) => s + Math.max(0, r.targetAmount - r.actual), 0);
 
   return (
     <div style={S.page}>
@@ -135,36 +151,43 @@ export default function IndicatorStatusPage({ stats, finalScore, results, rows =
       {showDetail      && <DetailModal  rows={rows}     onClose={() => setShowDetail(false)} />}
       {showTargetModal && <TargetModal  results={list}  onClose={() => setShowTargetModal(false)} />}
 
-      {/* KPI 카드 5개 */}
+      {/* KPI 카드 6개 */}
       <div style={S.kpiRow}>
         <KpiCard
-          title="총 구매액"
-          value={KRW(stats?.totalPurchaseAll)}
-          sub={`전체 ${stats?.rowCount?.toLocaleString('ko-KR') ?? 0}건`}
-          onClick={() => setShowDetail(true)}
+          title="예산 배정액"
+          value={allocatedBudgetKnown ? <AmountText value={stats.allocatedBudget} /> : '-'}
+          sub="수용비·용역·연구·공사 항목 기준"
+        />
+        <KpiCard
+          title="집행 가능 예산"
+          value={remainingBudgetKnown ? <AmountText value={stats.remainingBudget} /> : '-'}
+          sub="배정액 - 집행액"
+          valueColor={remainingBudgetKnown && stats.remainingBudget < 0 ? '#F04452' : '#3182F6'}
         />
         <KpiCard
           title="공공구매 목표액"
-          value={KRW(stats?.totalTargetSum)}
+          value={<AmountText value={stats?.totalTargetSum} />}
           sub="목표 합산"
           onClick={() => setShowTargetModal(true)}
         />
         <KpiCard
-          title="공공구매 지출액"
-          value={KRW(stats?.totalPurchase)}
+          title="공공구매 실적"
+          value={<AmountText value={stats?.totalPurchase} />}
           sub="물품·용역·공사"
+          onClick={() => setShowDetail(true)}
         />
         <KpiCard
-          title="지표달성률(전체)"
-          value={`${achieved.length} / ${total}개`}
-          sub={`(${total ? ((achieved.length / total) * 100).toFixed(1) : '0.0'}%)`}
-          valueColor={achieved.length >= total * 0.7 ? '#00B493' : '#F04452'}
+          title="공공구매 부족액"
+          value={<AmountText value={totalShortfall} />}
+          sub="지표별 부족액 합산"
+          valueColor={totalShortfall > 0 ? '#F04452' : '#00B493'}
         />
         <KpiCard
           title="공공구매 점수"
           value={finalScore?.toFixed(2) ?? '-'}
-          unit="/ 4.00점"
+          sub={`${(maxScore ?? 4).toFixed(0)}점 만점`}
           valueColor={scoreColor}
+          variant="score"
         />
       </div>
 
@@ -200,10 +223,12 @@ const S = {
   kpiRow:          { display: 'flex', gap: 14, marginBottom: 18 },
   kpiCard:         { flex: 1, background: '#FFFFFF', borderRadius: 16, padding: '18px 18px 14px', border: '1px solid #F2F4F6', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', minWidth: 0 },
   kpiCardClickable: { cursor: 'pointer', transition: 'border-color 0.15s' },
-  kpiTitle:        { fontSize: 13, color: '#8B95A1', marginBottom: 6, fontWeight: 500, display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  kpiCardScore:    { textAlign: 'center', background: '#F0F6FF', border: '1px solid #BFDBFE' },
+  kpiTitle:        { fontSize: 13, color: '#191F28', marginBottom: 6, fontWeight: 500, display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   kpiHint:         { fontSize: 12, color: '#3182F6', fontWeight: 500 },
   kpiValueRow:     { display: 'flex', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' },
   kpiValue:        { fontSize: 22, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.5px' },
+  kpiValueScore:   { fontSize: 34, marginTop: 4 },
   kpiUnit:         { fontSize: 13, color: '#8B95A1' },
   kpiSub:          { fontSize: 13, color: '#8B95A1', marginTop: 5 },
 

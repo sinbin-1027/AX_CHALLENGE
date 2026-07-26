@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
+import AmountText from '../components/AmountText';
 
-const KRW = (n) => n == null ? '-' : Math.round(n).toLocaleString('ko-KR') + '원';
 const PCT = (r) => r == null ? '-' : (r * 100).toFixed(1) + '%';
 
 // ── 지표 목록 ─────────────────────────────────────────────────────────────────
@@ -140,12 +140,12 @@ export default function IndicatorDetailPage({ rows = [], results = [], isYeonsoo
       <div style={S.kpiRow}>
         <div style={S.kpiCard}>
           <div style={S.kpiTitle}>목표액</div>
-          <div style={S.kpiValue}>{noTarget ? '-' : KRW(targetAmount)}</div>
+          <div style={S.kpiValue}>{noTarget ? '-' : <AmountText value={targetAmount} />}</div>
           {isAutoFull && <div style={{ ...S.kpiSub, color: '#3182F6' }}>자동만점</div>}
         </div>
         <div style={S.kpiCard}>
           <div style={S.kpiTitle}>지출액(실적액)</div>
-          <div style={S.kpiValue}>{KRW(actual)}</div>
+          <div style={S.kpiValue}><AmountText value={actual} /></div>
         </div>
         <div style={S.kpiCard}>
           <div style={S.kpiTitle}>달성률</div>
@@ -159,7 +159,7 @@ export default function IndicatorDetailPage({ rows = [], results = [], isYeonsoo
         <div style={S.kpiCard}>
           <div style={S.kpiTitle}>부족액</div>
           <div style={{ ...S.kpiValue, color: shortfall > 0 ? '#F04452' : '#8B95A1' }}>
-            {noTarget ? '-' : shortfall > 0 ? KRW(shortfall) : '-'}
+            {noTarget ? '-' : shortfall > 0 ? <AmountText value={shortfall} /> : '-'}
           </div>
         </div>
         <div style={S.kpiCard}>
@@ -222,7 +222,7 @@ export default function IndicatorDetailPage({ rows = [], results = [], isYeonsoo
                     {row['예산명'] || '-'}
                   </td>
                   <td style={{ ...S.td, textAlign: 'right', fontWeight: 600 }}>
-                    {KRW(row['물품금액'])}
+                    <AmountText value={row['물품금액']} />
                   </td>
                 </tr>
               ))}

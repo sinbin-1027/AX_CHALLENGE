@@ -5,13 +5,13 @@ import kosmeLogo from '../assets/kosme_logo.png';
 const NAV = [
   {
     key: 'dashboard',
-    icon: '종',
+    icon: '1',
     label: '종합현황',
     path: '/',
   },
   {
     key: 'budget',
-    icon: '예',
+    icon: '2',
     label: '예산관리',
     children: [
       { key: 'budget-alloc',  label: '예산 배정 현황', path: '/budget/allocation' },
@@ -20,25 +20,25 @@ const NAV = [
   },
   {
     key: 'procurement',
-    icon: '공',
+    icon: '3',
     label: '공공구매 관리',
     children: [
       { key: 'proc-indicators', label: '지표 현황',           path: '/procurement/indicators' },
       { key: 'proc-details',    label: '지표별 실적 상세',     path: '/procurement/details'    },
-      { key: 'proc-register',   label: '실적 등록(수기등록)', path: '/procurement/register'   },
+      { key: 'proc-register',   label: '구매 실적 등록', path: '/procurement/register'   },
       { key: 'proc-simulation', label: '공공구매 시뮬레이션', path: '/procurement/simulation' },
       { key: 'proc-vendors',    label: '인증 보유 업체 검색', path: '/procurement/vendors'    },
     ],
   },
   {
     key: 'regulations',
-    icon: '규',
+    icon: '4',
     label: '규정/가이드',
     path: '/regulations',
   },
   {
     key: 'data',
-    icon: '데',
+    icon: '5',
     label: '데이터 관리',
     children: [
       { key: 'data-uploads',  label: '업로드 기록',       path: '/data/uploads'  },
