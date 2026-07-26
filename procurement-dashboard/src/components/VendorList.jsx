@@ -132,6 +132,25 @@ export default function VendorList() {
 
   return (
     <div>
+      <style>{`
+        .certStatusFilterBtn,
+        .certStatusFilterBtn:focus,
+        .certStatusFilterBtn:focus-visible,
+        .certStatusFilterBtn:active,
+        .certStatusFilterBtn:hover {
+          outline: none !important;
+          box-shadow: none !important;
+        }
+        .certStatusFilterBtn::-moz-focus-inner {
+          border: 0 !important;
+        }
+        .certStatusFilterBtn:not(.active):focus,
+        .certStatusFilterBtn:not(.active):focus-visible,
+        .certStatusFilterBtn:not(.active):active {
+          border-color: #F2F4F6 !important;
+        }
+      `}</style>
+
       {selected && <DetailModal vendor={selected} onClose={() => setSelected(null)} />}
 
       <div style={S.card}>
@@ -149,6 +168,7 @@ export default function VendorList() {
           {CERT_FILTERS.map(f => (
             <button
               key={f.value}
+              className={`certStatusFilterBtn${certFilter === f.value ? ' active' : ''}`}
               style={{ ...S.filterBtn, ...(certFilter === f.value ? S.filterBtnActive : {}) }}
               onClick={() => { setCertFilter(f.value); setPage(1); }}
             >{f.label}</button>
@@ -159,6 +179,7 @@ export default function VendorList() {
           {STATUS_FILTERS.map(f => (
             <button
               key={f.value}
+              className={`certStatusFilterBtn${statusFilter === f.value ? ' active' : ''}`}
               style={{ ...S.filterBtn, ...(statusFilter === f.value ? S.filterBtnActive : {}) }}
               onClick={() => { setStatusFilter(f.value); setPage(1); }}
             >{f.label}</button>
@@ -171,6 +192,11 @@ export default function VendorList() {
           <span style={S.tableTitle}>
             업체 목록
             <span style={S.totalBadge}>{data.total.toLocaleString()}개</span>
+            <span style={S.statusLegend}>
+              <span><span style={{ ...S.legendDot, background: STATUS_STYLE['유효'].text }} />유효</span>
+              <span><span style={{ ...S.legendDot, background: STATUS_STYLE['확인필요'].text }} />확인필요(만료/재확인 필요)</span>
+              <span><span style={{ ...S.legendDot, background: STATUS_STYLE['취소'].text }} />취소</span>
+            </span>
           </span>
           {loading && <span style={{ fontSize: 13, color: '#94a3b8' }}>조회 중…</span>}
         </div>
@@ -265,6 +291,8 @@ const S = {
   tableHeader:     { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   tableTitle:      { fontSize: 15, fontWeight: 700, color: '#191F28', display: 'flex', alignItems: 'center', gap: 8, letterSpacing: '-0.2px' },
   totalBadge:      { fontSize: 13, fontWeight: 500, color: '#8B95A1', background: '#F2F4F6', padding: '2px 10px', borderRadius: 99 },
+  statusLegend:    { display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, fontWeight: 400, color: '#8B95A1', flexWrap: 'wrap' },
+  legendDot:       { display: 'inline-block', width: 6, height: 6, borderRadius: '50%', marginRight: 4 },
   table:           { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
   th:              { padding: '10px 14px', fontWeight: 600, color: '#8B95A1', borderBottom: '1px solid #F2F4F6', textAlign: 'left', whiteSpace: 'nowrap', background: '#F9FAFB', fontSize: 12 },
   td:              { padding: '11px 14px', borderBottom: '1px solid #F2F4F6', color: '#191F28', whiteSpace: 'nowrap' },

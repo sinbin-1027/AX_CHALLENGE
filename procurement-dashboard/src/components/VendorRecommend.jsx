@@ -122,6 +122,11 @@ export default function VendorRecommend({ insufficientKeys = [] }) {
           <span style={S.cardTitle}>
             추천 결과
             <span style={S.totalBadge}>{data.total.toLocaleString()}개</span>
+            <span style={S.statusLegend}>
+              <span><span style={{ ...S.legendDot, background: STATUS_STYLE['유효'].text }} />유효</span>
+              <span><span style={{ ...S.legendDot, background: STATUS_STYLE['확인필요'].text }} />확인필요(만료/재확인 필요)</span>
+              <span><span style={{ ...S.legendDot, background: STATUS_STYLE['취소'].text }} />취소</span>
+            </span>
           </span>
           {loading && <span style={{ fontSize: 13, color: '#94a3b8' }}>조회 중…</span>}
         </div>
@@ -197,6 +202,8 @@ const S = {
   cardTitle:        { fontSize: 15, fontWeight: 700, color: '#191F28', letterSpacing: '-0.2px', display: 'flex', alignItems: 'center', gap: 8 },
   cardHeader:       { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   totalBadge:       { fontSize: 13, fontWeight: 500, color: '#8B95A1', background: '#F2F4F6', padding: '2px 10px', borderRadius: 99 },
+  statusLegend:     { display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, fontWeight: 400, color: '#8B95A1', flexWrap: 'wrap' },
+  legendDot:        { display: 'inline-block', width: 6, height: 6, borderRadius: '50%', marginRight: 4 },
   insufficientWrap: { display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16, flexWrap: 'wrap' },
   insufficientLabel:{ fontSize: 13, fontWeight: 600, color: '#8B95A1', whiteSpace: 'nowrap', paddingTop: 3 },
   badgeRow:         { display: 'flex', flexWrap: 'wrap', gap: 6 },

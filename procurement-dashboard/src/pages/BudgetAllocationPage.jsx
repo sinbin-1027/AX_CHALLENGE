@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
+import AmountText from '../components/AmountText';
 
 const API_BASE = process.env.REACT_APP_API_URL || '';
 
-const KRW = (n) => n == null ? '-' : Math.round(n).toLocaleString('ko-KR') + '원';
 const PCT = (n) => n == null ? '-' : Number(n).toFixed(1) + '%';
 
 function rateColor(rate) {
@@ -22,8 +22,8 @@ function budgetRateColor(rate) {
 }
 
 // 개별 항목 카드: 제목 → 잔액(강조) → 집행률 바 → 배정액 보조텍스트
-// (showBar=false면 바/보조텍스트 대신 pctLabel 텍스트만 표시 — 연간 배정액 카드용)
-function ItemCard({ title, allocated, executed, pctLabel, showBar = true, style }) {
+// (showBar=false면 바/보조텍스트 없이 금액만 표시 — 연간 배정액 카드용)
+function ItemCard({ title, allocated, executed, showBar = true, style }) {
   const remaining = allocated - executed;
   const rate = allocated > 0 ? (executed / allocated) * 100 : 0;
   const color = budgetRateColor(rate);
@@ -31,8 +31,8 @@ function ItemCard({ title, allocated, executed, pctLabel, showBar = true, style 
   return (
     <div style={{ ...S.itemCard, ...style }}>
       <div style={S.kpiTitle}>{title}</div>
-      <div style={S.itemValue}>{KRW(remaining)}</div>
-      {showBar ? (
+      <div style={S.itemValue}><AmountText value={remaining} /></div>
+      {showBar && (
         <>
           <div style={S.itemBarRow}>
             <div style={S.itemBarTrack}>
@@ -40,22 +40,19 @@ function ItemCard({ title, allocated, executed, pctLabel, showBar = true, style 
             </div>
             <span style={{ ...S.itemBarPct, color }}>{PCT(rate)}</span>
           </div>
-          <div style={S.itemSub}>배정 {KRW(allocated)}</div>
+          <div style={S.itemSub}>배정 <AmountText value={allocated} /></div>
         </>
-      ) : (
-        <div style={S.itemSub}>{pctLabel}</div>
       )}
     </div>
   );
 }
 
-// 그룹 카드: 상단에 그룹 총합(배정액 + annualTotal 대비 %), 하단에 하위 항목 2개
-function GroupCard({ title, totalAllocated, pctLabel, items }) {
+// 그룹 카드: 상단에 그룹 총합, 하단에 하위 항목 2개
+function GroupCard({ title, totalAllocated, items }) {
   return (
     <div style={{ ...S.itemCard, ...S.groupCard }}>
       <div style={S.kpiTitle}>{title}</div>
-      <div style={S.itemValue}>{KRW(totalAllocated)}</div>
-      <div style={S.itemSub}>{pctLabel}</div>
+      <div style={S.itemValue}><AmountText value={totalAllocated} /></div>
       <div style={S.groupSubRow}>
         {items.map(it => (
           <ItemCard key={it.title} {...it} style={S.groupSubItem} />
@@ -128,9 +125,6 @@ export default function BudgetAllocationPage({ deptId, year }) {
     };
   };
 
-  const pctOfAnnual = (v) => annualTotal > 0 ? (v / annualTotal) * 100 : 0;
-  const pctLabel     = (v) => `(${PCT(pctOfAnnual(v))})`;
-
   // 활동비: 업무추진비 / 여비
   const 업무추진비        = sumFields(n => n.includes('업무추진비'));
   const 여비              = sumFields(n => n.includes('여비'));
@@ -156,14 +150,12 @@ export default function BudgetAllocationPage({ deptId, year }) {
           allocated={annualTotal}
           executed={0}
           showBar={false}
-          pctLabel="(100%)"
           style={S.standaloneCard}
         />
 
         <GroupCard
           title="활동비 배정액"
           totalAllocated={활동비총합배정액}
-          pctLabel={pctLabel(활동비총합배정액)}
           items={[
             { title: '업무추진비', ...업무추진비 },
             { title: '여비',       ...여비 },
@@ -173,16 +165,15 @@ export default function BudgetAllocationPage({ deptId, year }) {
         <GroupCard
           title="운영비 배정액"
           totalAllocated={운영비총합배정액}
-          pctLabel={pctLabel(운영비총합배정액)}
           items={[
             { title: '특근매식비', ...특근매식비 },
             { title: '기타운영비', ...기타운영비 },
           ]}
         />
 
-        <ItemCard title="일반수용비 배정액" {...일반수용비} style={S.standaloneCard} />
-        <ItemCard title="일반용역비 배정액" {...일반용역비} style={S.standaloneCard} />
-        <ItemCard title="일반공사비 배정액" {...일반공사비} style={S.standaloneCard} />
+        <ItemCard title="일반수용비" {...일반수용비} style={S.standaloneCard} />
+        <ItemCard title="일반용역비" {...일반용역비} style={S.standaloneCard} />
+        <ItemCard title="공사비" {...일반공사비} style={S.standaloneCard} />
       </div>
 
       {/* 메인 테이블 */}
@@ -215,9 +206,9 @@ export default function BudgetAllocationPage({ deptId, year }) {
           <tfoot>
             <tr style={S.totalRow}>
               <td style={{ ...S.td, fontWeight: 700 }} colSpan={2}>합계</td>
-              <td style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}>{KRW(total.배정액합계)}</td>
-              <td style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}>{KRW(total.집행액합계)}</td>
-              <td style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}>{KRW(total.잔액합계)}</td>
+              <td style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}><AmountText value={total.배정액합계} /></td>
+              <td style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}><AmountText value={total.집행액합계} /></td>
+              <td style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}><AmountText value={total.잔액합계} /></td>
               <td style={{ ...S.td, textAlign: 'right', fontWeight: 700, color: rateColor(totalRate) }}>{PCT(totalRate)}</td>
               <td style={S.td}><RateBar rate={totalRate} /></td>
             </tr>
@@ -247,9 +238,9 @@ function BudgetGroupRows({ group, isOpen, onToggle }) {
         <tr key={i} style={S.subRow}>
           <td style={{ ...S.td, ...S.subCell }}>{item.예산과목명}</td>
           <td style={{ ...S.td, textAlign: 'center' }}>{item.회계연도}</td>
-          <td style={{ ...S.td, textAlign: 'right' }}>{KRW(item.배정액)}</td>
-          <td style={{ ...S.td, textAlign: 'right' }}>{KRW(item.집행액)}</td>
-          <td style={{ ...S.td, textAlign: 'right' }}>{KRW(item.잔액)}</td>
+          <td style={{ ...S.td, textAlign: 'right' }}><AmountText value={item.배정액} /></td>
+          <td style={{ ...S.td, textAlign: 'right' }}><AmountText value={item.집행액} /></td>
+          <td style={{ ...S.td, textAlign: 'right' }}><AmountText value={item.잔액} /></td>
           <td style={{ ...S.td, textAlign: 'right', fontWeight: 700, color: rateColor(item.집행률) }}>
             {PCT(item.집행률)}
           </td>
@@ -261,9 +252,9 @@ function BudgetGroupRows({ group, isOpen, onToggle }) {
         <tr style={S.subtotalRow}>
           <td style={{ ...S.td, ...S.subtotalCell }}>소계</td>
           <td style={S.td} />
-          <td style={{ ...S.td, ...S.subtotalCell, textAlign: 'right' }}>{KRW(subtotal.배정액합계)}</td>
-          <td style={{ ...S.td, ...S.subtotalCell, textAlign: 'right' }}>{KRW(subtotal.집행액합계)}</td>
-          <td style={{ ...S.td, ...S.subtotalCell, textAlign: 'right' }}>{KRW(subtotal.잔액합계)}</td>
+          <td style={{ ...S.td, ...S.subtotalCell, textAlign: 'right' }}><AmountText value={subtotal.배정액합계} /></td>
+          <td style={{ ...S.td, ...S.subtotalCell, textAlign: 'right' }}><AmountText value={subtotal.집행액합계} /></td>
+          <td style={{ ...S.td, ...S.subtotalCell, textAlign: 'right' }}><AmountText value={subtotal.잔액합계} /></td>
           <td style={{ ...S.td, ...S.subtotalCell, textAlign: 'right', color: rateColor(subtotal.집행률평균) }}>
             {PCT(subtotal.집행률평균)}
           </td>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts';
+import AmountText from '../components/AmountText';
 
 const API_BASE = process.env.REACT_APP_API_URL || '';
 
@@ -25,10 +26,6 @@ function buildMonthlySub(thisMonthActual, monthlyRecommended) {
   return `월 권장 집행액 대비 ${KRW(Math.abs(diff))} 미달`;
 }
 
-function formatDateDot(dateStr) {
-  return dateStr.replace(/-/g, '.');
-}
-
 function rateBarColor(rate) {
   if (rate >= 90) return '#F04452';
   if (rate >= 70) return '#FF6B00';
@@ -41,7 +38,7 @@ function TrendTooltip({ active, payload, label }) {
   return (
     <div style={{ background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: '8px 12px', fontSize: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
       <div style={{ fontWeight: 600, marginBottom: 4 }}>{label}</div>
-      <div style={{ color: '#8B95A1' }}>{KRW(v)}</div>
+      <div style={{ color: '#8B95A1' }}><AmountText value={v} /></div>
     </div>
   );
 }
@@ -61,6 +58,7 @@ function TrendCard({ item }) {
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F2F4F6" />
             <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#8B95A1' }} axisLine={false} tickLine={false} />
             <YAxis
+              domain={[0, dataMax => Math.max(dataMax, item.monthlyRecommended) * 1.1]}
               tickFormatter={v => v >= 10000 ? `${Math.round(v / 10000)}만` : v}
               tick={{ fontSize: 10, fill: '#8B95A1' }}
               axisLine={false}
@@ -68,6 +66,12 @@ function TrendCard({ item }) {
               width={40}
             />
             <Tooltip content={<TrendTooltip />} cursor={{ fill: '#F9FAFB' }} />
+            <ReferenceLine
+              y={item.monthlyRecommended}
+              stroke="#FFA8AD"
+              strokeDasharray="4 4"
+              label={{ value: '월 권장 집행액', position: 'insideTopRight', fontSize: 10, fill: '#F04452' }}
+            />
             <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={28} fill="#3182F6" />
           </BarChart>
         </ResponsiveContainer>
@@ -93,6 +97,15 @@ function SnapshotCard({ item }) {
     );
   }
 
+  if (item.allocatedTotal <= 0) {
+    return (
+      <div style={S.card}>
+        <div style={S.cardTitle}>{item.label}</div>
+        <div style={S.noSnapshotMsg}>배정 내역 없음</div>
+      </div>
+    );
+  }
+
   const remaining = item.allocatedTotal - item.spentSoFar;
   const rate = item.allocatedTotal > 0 ? (item.spentSoFar / item.allocatedTotal) * 100 : 0;
   const barColor = rateBarColor(rate);
@@ -101,20 +114,19 @@ function SnapshotCard({ item }) {
   return (
     <div style={S.card}>
       <div style={S.cardTitle}>{item.label}</div>
-      <div style={S.snapshotDate}>{formatDateDot(item.기준일)} 기준 스냅샷 데이터</div>
 
       <div style={S.snapshotStats}>
         <div style={S.statCol}>
           <div style={S.statLabel}>배정액</div>
-          <div style={S.statValue}>{KRW(item.allocatedTotal)}</div>
+          <div style={S.statValue}><AmountText value={item.allocatedTotal} /></div>
         </div>
         <div style={S.statCol}>
           <div style={S.statLabel}>집행액</div>
-          <div style={S.statValue}>{KRW(item.spentSoFar)}</div>
+          <div style={S.statValue}><AmountText value={item.spentSoFar} /></div>
         </div>
         <div style={S.statCol}>
           <div style={S.statLabel}>잔액</div>
-          <div style={S.statValue}>{KRW(remaining)}</div>
+          <div style={S.statValue}><AmountText value={remaining} /></div>
         </div>
       </div>
 
@@ -195,10 +207,9 @@ const S = {
   cardTitle: { fontSize: 15, fontWeight: 700, color: '#191F28', letterSpacing: '-0.2px', marginBottom: 12 },
 
   headline: { fontSize: 14, fontWeight: 700, marginTop: 14, letterSpacing: '-0.2px' },
-  sub:      { fontSize: 12, color: '#8B95A1', marginTop: 10, fontWeight: 500 },
+  sub:      { fontSize: 12, color: '#191F28', marginTop: 10, fontWeight: 500 },
   footnote: { fontSize: 11, color: '#B0B8C1', marginTop: 4 },
 
-  snapshotDate:  { fontSize: 12, color: '#8B95A1', fontWeight: 500, marginBottom: 14 },
   snapshotStats: { display: 'flex', gap: 16, marginBottom: 14 },
   statCol:       { flex: 1 },
   statLabel:     { fontSize: 12, color: '#8B95A1', fontWeight: 500, marginBottom: 4 },

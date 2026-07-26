@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { calcEngine } from '../utils/calcEngine';
+import AmountText from '../components/AmountText';
 
 // Dashboard의 SIM_OVERRIDES와 동일
 const SIM_OVERRIDES = {
@@ -37,7 +38,6 @@ const COLOR = {
   card:    '#FFFFFF',
 };
 
-const KRW = (n) => n == null ? '-' : Math.round(n).toLocaleString('ko-KR') + '원';
 const PCT = (r) => r == null ? '-' : (r * 100).toFixed(1) + '%';
 
 function createVirtualRow(amount, purchaseType, checkedKeys) {
@@ -162,7 +162,7 @@ export default function SimulationPage({ rows = [], results = [], finalScore = 0
         />
         <SummaryCard
           label="총 구매 실적"
-          value={KRW(rows.filter(r => (r['제외여부'] ?? 0) === 0).reduce((s, r) => s + (Number(r['물품금액']) || 0), 0))}
+          value={<AmountText value={rows.filter(r => (r['제외여부'] ?? 0) === 0).reduce((s, r) => s + (Number(r['물품금액']) || 0), 0)} />}
           sub={`${rows.length}건`}
         />
         <SummaryCard
@@ -242,7 +242,7 @@ export default function SimulationPage({ rows = [], results = [], finalScore = 0
               <div style={P.inputSummary}>
                 <div style={P.inputSummaryTitle}>분석 조건</div>
                 <div style={P.inputSummaryRow}>
-                  <span>금액</span><span style={{ fontWeight: 700 }}>{KRW(parseAmt(amount))}</span>
+                  <span>금액</span><span style={{ fontWeight: 700 }}><AmountText value={parseAmt(amount)} /></span>
                 </div>
                 <div style={P.inputSummaryRow}>
                   <span>구분</span><span style={{ fontWeight: 700 }}>{purchaseType}</span>
@@ -331,11 +331,11 @@ export default function SimulationPage({ rows = [], results = [], finalScore = 0
                             return (
                               <tr key={c.key} style={{ background: rowBg }}>
                                 <td style={{ ...P.td, fontWeight: 600 }}>{c.label}</td>
-                                <td style={{ ...P.td, textAlign: 'right', color: COLOR.subtext }}>{KRW(c.simTarget)}</td>
-                                <td style={{ ...P.td, textAlign: 'right' }}>{KRW(c.curActual)}</td>
-                                <td style={{ ...P.td, textAlign: 'right', fontWeight: 700 }}>{KRW(c.simActual)}</td>
+                                <td style={{ ...P.td, textAlign: 'right', color: COLOR.subtext }}><AmountText value={c.simTarget} /></td>
+                                <td style={{ ...P.td, textAlign: 'right' }}><AmountText value={c.curActual} /></td>
+                                <td style={{ ...P.td, textAlign: 'right', fontWeight: 700 }}><AmountText value={c.simActual} /></td>
                                 <td style={{ ...P.td, textAlign: 'right', color: aDiffColor, fontWeight: 700 }}>
-                                  {c.actualDiff > 0 ? '+' : ''}{KRW(c.actualDiff)}
+                                  {c.actualDiff > 0 ? '+' : ''}<AmountText value={c.actualDiff} />
                                 </td>
                                 <td style={{ ...P.td, textAlign: 'right', color: c.curAchieved ? COLOR.success : COLOR.danger }}>
                                   {PCT(c.curRate)}
