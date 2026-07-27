@@ -236,27 +236,6 @@ export default function SimulationPage({ rows = [], results = [], finalScore = 0
             >
               분석하기
             </button>
-
-            {/* 입력 요약 */}
-            {simResult && (
-              <div style={P.inputSummary}>
-                <div style={P.inputSummaryTitle}>분석 조건</div>
-                <div style={P.inputSummaryRow}>
-                  <span>금액</span><span style={{ fontWeight: 700 }}><AmountText value={parseAmt(amount)} /></span>
-                </div>
-                <div style={P.inputSummaryRow}>
-                  <span>구분</span><span style={{ fontWeight: 700 }}>{purchaseType}</span>
-                </div>
-                {checked.size > 0 && (
-                  <div style={P.inputSummaryRow}>
-                    <span>인증</span>
-                    <span style={{ fontWeight: 700, textAlign: 'right', maxWidth: 160 }}>
-                      {CERT_OPTIONS.filter(c => checked.has(c.key)).map(c => c.label).join(', ')}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
           {/* 오른쪽: 결과 */}
@@ -309,7 +288,7 @@ export default function SimulationPage({ rows = [], results = [], finalScore = 0
                       이 조건으로는 지표 변화가 없습니다.
                     </div>
                   ) : (
-                    <div style={{ overflowX: 'auto' }}>
+                    <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 440 }}>
                       <table style={P.table}>
                         <thead>
                           <tr style={{ background: COLOR.bg }}>
@@ -385,25 +364,22 @@ const P = {
   desc:         { fontSize: 13, color: COLOR.subtext },
   resetBtn:     { padding: '8px 18px', background: '#F2F4F6', color: COLOR.text, border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', alignSelf: 'flex-start' },
   body:         { display: 'flex', gap: 0 },
-  inputPane:    { flex: '0 0 320px', borderRight: `1px solid ${COLOR.border}`, padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 20 },
-  resultPane:   { flex: 1, padding: '24px 28px', display: 'flex', flexDirection: 'column' },
+  inputPane:    { flex: '0 0 360px', borderRight: `1px solid ${COLOR.border}`, padding: '24px 20px 24px 28px', display: 'flex', flexDirection: 'column', gap: 20 },
+  resultPane:   { flex: 1, padding: '24px 28px 24px 20px', display: 'flex', flexDirection: 'column' },
   fieldGroup:   { display: 'flex', flexDirection: 'column', gap: 8 },
   label:        { fontSize: 12, fontWeight: 700, color: COLOR.subtext, textTransform: 'uppercase', letterSpacing: '0.5px' },
   amountInput:  { flex: 1, padding: '11px 14px', border: `1.5px solid ${COLOR.border}`, borderRadius: 10, fontSize: 15, outline: 'none', background: COLOR.bg, color: COLOR.text, fontWeight: 600 },
   radioLabel:   { fontSize: 14, color: COLOR.text, display: 'flex', alignItems: 'center', cursor: 'pointer', fontWeight: 500 },
   certGrid:     { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px 6px' },
-  certItem:     { fontSize: 13, color: COLOR.text, display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '6px 8px', borderRadius: 8, transition: 'background 0.15s' },
+  certItem:     { fontSize: 13, color: COLOR.text, display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '6px 8px', borderRadius: 8, transition: 'background 0.15s', whiteSpace: 'nowrap' },
   analyzeBtn:   { padding: '13px', background: COLOR.primary, color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, letterSpacing: '-0.2px' },
-  inputSummary: { background: COLOR.bg, borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 },
-  inputSummaryTitle: { fontSize: 11, fontWeight: 700, color: COLOR.subtext, marginBottom: 2 },
-  inputSummaryRow:   { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', fontSize: 13, color: COLOR.text, gap: 8 },
   placeholder:  { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '60px 0' },
   scoreRow:     { display: 'flex', gap: 16, alignItems: 'stretch' },
   scoreBox:     { flex: 1, background: COLOR.bg, borderRadius: 14, padding: '18px 22px', border: `1.5px solid ${COLOR.border}` },
   scoreBoxLabel:{ fontSize: 12, color: COLOR.subtext, fontWeight: 600, marginBottom: 8 },
   noChange:     { textAlign: 'center', padding: '32px 0', fontSize: 14, color: COLOR.subtext, background: COLOR.bg, borderRadius: 12 },
   table:        { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
-  th:           { padding: '10px 14px', fontWeight: 600, color: COLOR.subtext, borderBottom: `1px solid ${COLOR.border}`, textAlign: 'left', background: COLOR.bg, whiteSpace: 'nowrap', fontSize: 12 },
+  th:           { padding: '10px 14px', fontWeight: 600, color: COLOR.subtext, borderBottom: `1px solid ${COLOR.border}`, textAlign: 'left', background: COLOR.bg, whiteSpace: 'nowrap', fontSize: 12, position: 'sticky', top: 0 },
   td:           { padding: '11px 14px', borderBottom: `1px solid ${COLOR.border}`, color: COLOR.text, whiteSpace: 'nowrap' },
   badgeSuccess: { fontSize: 11, fontWeight: 700, background: COLOR.success, color: '#fff', padding: '3px 10px', borderRadius: 99 },
   badgeDanger:  { fontSize: 11, fontWeight: 700, background: COLOR.danger,  color: '#fff', padding: '3px 10px', borderRadius: 99 },

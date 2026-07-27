@@ -17,6 +17,7 @@ import UploadHistoryPage from './pages/UploadHistoryPage';
 import GuideListPage from './pages/GuideListPage';
 import GuideDetailPage from './pages/GuideDetailPage';
 import { calcEngine } from './utils/calcEngine';
+import { buildExcludeTargets } from './data/groupIndicators';
 
 const API_BASE = process.env.REACT_APP_API_URL || '';
 
@@ -27,21 +28,6 @@ const FETCH_OPTS = {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   },
 };
-
-// ── 직군별 지표 제외 목록 ─────────────────────────────────────────────────────
-
-function buildExcludeTargets(groupName) {
-  if (groupName === '연수') return [];
-  if (groupName === '특화기능') {
-    return [
-      'sme', 'women_goods', 'women_service', 'women_construction',
-      'disabled_enterprise', 'standard_workshop', 'severe_disabled',
-      'cooperative', 'tech_development', 'pilot_purchase', 'nep',
-      'green_product', 'jawal_veteran', 'innovative_product',
-    ];
-  }
-  return ['innovative_product'];
-}
 
 // ── 메인 레이아웃 ─────────────────────────────────────────────────────────────
 function AppLayout({ onLogout }) {
@@ -239,7 +225,7 @@ function AppLayout({ onLogout }) {
                 ? <IndicatorStatusPage stats={{ ...result.stats, ...budgetSummary }} finalScore={result.finalScore} maxScore={selectedDept?.score_weight} results={result.results} rows={activeRows} isYeonsoo={isYeonsoo} />
                 : <ComingSoon title="지표 현황" />
             } />
-            <Route path="/procurement/details"  element={<IndicatorDetailPage rows={activeRows} results={result?.results ?? []} isYeonsoo={isYeonsoo} />} />
+            <Route path="/procurement/details"  element={<IndicatorDetailPage rows={activeRows} results={result?.results ?? []} groupName={selectedDept?.group_name} />} />
             <Route path="/procurement/register" element={
               <DetailsPage
                 rows={activeRows}

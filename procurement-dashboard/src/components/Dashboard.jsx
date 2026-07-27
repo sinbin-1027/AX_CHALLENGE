@@ -4,7 +4,7 @@ import {
   Tooltip, ReferenceLine, Cell, ResponsiveContainer,
   PieChart, Pie,
 } from 'recharts';
-import AmountText from './AmountText';
+import AmountText, { scaleForValue } from './AmountText';
 
 // ── 포맷 ─────────────────────────────────────────────────────────────────────
 const PCT = (r) => r == null ? '-' : (r * 100).toFixed(1) + '%';
@@ -86,8 +86,8 @@ export function TargetModal({ results, onClose }) {
               <tr>
                 <th style={TM.th}>지표명</th>
                 <th style={TM.th}>목표액 산출기준</th>
-                <th style={{ ...TM.th, textAlign: 'center' }}>배점</th>
-                <th style={{ ...TM.th, textAlign: 'right' }}>목표액</th>
+                <th style={{ ...TM.th, textAlign: 'center', padding: '10px 8px' }}>배점</th>
+                <th style={{ ...TM.th, textAlign: 'right', paddingLeft: 8 }}>목표액</th>
               </tr>
             </thead>
             <tbody>
@@ -97,11 +97,11 @@ export function TargetModal({ results, onClose }) {
                   <td style={{ ...TM.td, color: COLOR.subtext, fontSize: 12 }}>
                     {BASIS_TEXT[r.key] ?? '-'}
                   </td>
-                  <td style={{ ...TM.td, textAlign: 'center', fontWeight: 700, color: '#3182F6' }}>
+                  <td style={{ ...TM.td, textAlign: 'center', fontWeight: 700, color: '#3182F6', padding: '11px 8px' }}>
                     {r.points != null ? `${r.points}점` : '-'}
                   </td>
-                  <td style={{ ...TM.td, textAlign: 'right', fontWeight: 600 }}>
-                    {r.targetAmount > 0 ? <AmountText value={r.targetAmount} /> : '-'}
+                  <td style={{ ...TM.td, textAlign: 'right', fontWeight: 700, fontSize: 15, paddingLeft: 8 }}>
+                    {r.targetAmount > 0 ? fmtKRW(r.targetAmount) : '-'}
                   </td>
                 </tr>
               ))}
@@ -109,10 +109,10 @@ export function TargetModal({ results, onClose }) {
             <tfoot>
               <tr style={{ background: '#f0f4f8', fontWeight: 700 }}>
                 <td style={TM.td} colSpan={2}>합계</td>
-                <td style={{ ...TM.td, textAlign: 'center', fontWeight: 700, color: '#3182F6' }}>
+                <td style={{ ...TM.td, textAlign: 'center', fontWeight: 700, color: '#3182F6', padding: '11px 8px' }}>
                   총 {totalPoints.toFixed(1)}점
                 </td>
-                <td style={{ ...TM.td, textAlign: 'right', color: COLOR.primary }}><AmountText value={total} /></td>
+                <td style={{ ...TM.td, textAlign: 'right', color: COLOR.primary, fontSize: 15, paddingLeft: 8 }}>{fmtKRW(total)}</td>
               </tr>
             </tfoot>
           </table>
@@ -147,6 +147,9 @@ const DETAIL_COLS = [
 export function DetailModal({ rows, onClose }) {
   const total = rows.reduce((s, r) => s + (Number(r['물품금액']) || 0), 0);
 
+  // 표의 다른 텍스트 컬럼(예산명 등)과 동일한 글자 크기로 고정 (길이에 따른 자동 축소 미적용)
+  const amountScale = 1;
+
   return (
     <div style={M.overlay} onClick={onClose}>
       <div style={M.panel} onClick={e => e.stopPropagation()}>
@@ -155,7 +158,7 @@ export function DetailModal({ rows, onClose }) {
         <div style={M.header}>
           <div>
             <div style={M.headerTitle}>지출 상세 내역</div>
-            <div style={M.headerSub}>총 {rows.length.toLocaleString('ko-KR')}건 · <AmountText value={total} /></div>
+            <div style={M.headerSub}>총 {rows.length.toLocaleString('ko-KR')}건 · <AmountText value={total} scale={amountScale} /></div>
           </div>
           <button style={M.closeBtn} onClick={onClose}>✕</button>
         </div>
@@ -189,7 +192,7 @@ export function DetailModal({ rows, onClose }) {
                       }}
                     >
                       {c.key === '물품금액'
-                        ? <AmountText value={Number(row[c.key]) || 0} />
+                        ? <AmountText value={Number(row[c.key]) || 0} scale={amountScale} />
                         : (row[c.key] || '-')}
                     </td>
                   ))}
@@ -199,7 +202,7 @@ export function DetailModal({ rows, onClose }) {
             <tfoot>
               <tr style={{ background: '#f5f5f5', fontWeight: 700 }}>
                 <td style={{ ...M.td, textAlign: 'center' }} colSpan={DETAIL_COLS.length}>합계</td>
-                <td style={{ ...M.td, textAlign: 'right', color: COLOR.primary }}><AmountText value={total} /></td>
+                <td style={{ ...M.td, textAlign: 'right', color: COLOR.primary }}><AmountText value={total} scale={amountScale} /></td>
               </tr>
             </tfoot>
           </table>
@@ -374,12 +377,12 @@ const AS = {
   divider:       { height: 1, background: COLOR.border, margin: '0 20px' },
   empty:         { fontSize: 13, color: COLOR.subtext, padding: '14px 0' },
   rankItem:      { display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderBottom: `1px solid ${COLOR.border}` },
-  rankShortfall: { fontSize: 12, color: COLOR.danger, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 },
-  rankBadge:     { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: '50%', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 },
+  rankShortfall: { fontSize: 12, color: COLOR.danger, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0, width: 118, textAlign: 'right', display: 'inline-block' },
+  rankBadge:     { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: 6, fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0, background: 'linear-gradient(135deg, #60A5FA, #2563EB)' },
   rankLabel:     { fontSize: 13, color: COLOR.text, width: 84, flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  rankBarTrack:  { flex: 1, minWidth: 0, height: 6, background: COLOR.border, borderRadius: 99, overflow: 'hidden' },
+  rankBarTrack:  { flex: '1 1 40px', minWidth: 0, height: 6, background: COLOR.border, borderRadius: 99, overflow: 'hidden' },
   rankBarFill:   { height: '100%', background: COLOR.danger, borderRadius: 99, transition: 'width 0.4s ease' },
-  rankPct:       { fontSize: 12, fontWeight: 700, color: COLOR.text, width: 40, textAlign: 'right', flexShrink: 0 },
+  rankPct:       { fontSize: 12, fontWeight: 700, color: COLOR.text, width: 44, textAlign: 'right', flexShrink: 0 },
 };
 
 // ── 우측 상단 패널: 도넛차트 + 달성/미달성 현황 ──────────────────────────────
@@ -459,7 +462,7 @@ function RightTopPanel({ results, rows, stats }) {
       {/* 미달성 지표 (전체) */}
       <div style={{ ...AS.section, flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <div style={{ ...AS.sectionHeader, flexShrink: 0 }}>
-          <span style={{ ...AS.sectionTitle, color: COLOR.danger }}>✗ 미달성 지표 ({notAchieved.length}개)</span>
+          <span style={{ ...AS.sectionTitle, color: COLOR.text }}>미달성 지표 ({notAchieved.length}개)</span>
         </div>
         {notAchieved.length === 0 && (
           <div style={{ ...AS.empty, color: COLOR.success }}>모든 지표를 달성했습니다!</div>
@@ -467,7 +470,7 @@ function RightTopPanel({ results, rows, stats }) {
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
           {notAchieved.map((r, i) => (
             <div key={r.key} style={AS.rankItem}>
-              <span style={{ ...AS.rankBadge, background: i === 0 ? '#ff4d4f' : i === 1 ? '#fa8c16' : '#faad14' }}>
+              <span style={AS.rankBadge}>
                 {i + 1}
               </span>
               <span style={AS.rankLabel}>{r.label}</span>
@@ -476,7 +479,7 @@ function RightTopPanel({ results, rows, stats }) {
               </div>
               <span style={AS.rankPct}>{PCT(r.achievementRate)}</span>
               <span style={AS.rankShortfall}>
-                <AmountText value={Math.max(0, r.targetAmount - r.actual)} /> 부족
+                <AmountText value={Math.max(0, r.targetAmount - r.actual)} scale={1} /> 부족
               </span>
             </div>
           ))}
@@ -552,20 +555,21 @@ function BarXAxisTick({ x, y, payload }) {
   );
 }
 
+// 이 테이블은 컬럼 폭이 고정돼 있어 AmountText의 길이별 자동 축소가 필요 없고,
+// 오히려 자릿수에 따라 크기가 달라 보이는 원인이 되므로 고정 크기 텍스트로 표시
+const fmtKRW = (n) => n == null ? '-' : Math.round(Number(n)).toLocaleString('ko-KR') + '원';
+
 function DetailTableBody({ rows, totals }) {
   return (
     <table style={DT.table}>
       <thead>
         <tr>
-          <th rowSpan={2} style={DT.th}>지표명</th>
-          <th colSpan={4} style={{ ...DT.th, textAlign: 'center' }}>실적현황</th>
-          <th rowSpan={2} style={{ ...DT.th, textAlign: 'right' }}>배점</th>
-        </tr>
-        <tr>
-          <th style={{ ...DT.th, textAlign: 'right', top: 35 }}>목표액</th>
-          <th style={{ ...DT.th, textAlign: 'right', top: 35 }}>실적</th>
-          <th style={{ ...DT.th, textAlign: 'right', top: 35 }}>달성률</th>
-          <th style={{ ...DT.th, textAlign: 'right', top: 35 }}>부족액</th>
+          <th style={{ ...DT.th, textAlign: 'center', width: 110 }}>지표명</th>
+          <th style={{ ...DT.th, textAlign: 'right', width: 130 }}>목표액</th>
+          <th style={{ ...DT.th, textAlign: 'right', width: 130 }}>실적</th>
+          <th style={{ ...DT.th, textAlign: 'right', width: 80 }}>달성률</th>
+          <th style={{ ...DT.th, textAlign: 'right', width: 130 }}>부족액</th>
+          <th style={{ ...DT.th, textAlign: 'right', width: 64 }}>배점</th>
         </tr>
       </thead>
       <tbody>
@@ -573,16 +577,16 @@ function DetailTableBody({ rows, totals }) {
           const color = rateColor(r.rate);
           return (
             <tr key={r.label} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-              <td style={{ ...DT.td, fontWeight: 500 }}>{r.label}</td>
-              <td style={{ ...DT.td, textAlign: 'right', color: COLOR.subtext }}>
-                {r.noTarget ? '-' : <AmountText value={r.targetAmount} />}
+              <td style={{ ...DT.td, fontWeight: 500, textAlign: 'center', width: 110 }}>{r.label}</td>
+              <td style={{ ...DT.td, textAlign: 'right', color: COLOR.text, fontSize: 16 }}>
+                {r.noTarget ? '-' : fmtKRW(r.targetAmount)}
               </td>
-              <td style={{ ...DT.td, textAlign: 'right' }}><AmountText value={r.actual} /></td>
-              <td style={{ ...DT.td, textAlign: 'right', fontWeight: 700, color }}>
+              <td style={{ ...DT.td, textAlign: 'right', color: COLOR.text, fontSize: 16 }}>{fmtKRW(r.actual)}</td>
+              <td style={{ ...DT.td, textAlign: 'right', fontWeight: 700, color, fontSize: 15 }}>
                 {r.noTarget ? '-' : PCT(r.rate)}
               </td>
-              <td style={{ ...DT.td, textAlign: 'right', color: r.shortfall > 0 ? COLOR.danger : COLOR.subtext }}>
-                {r.noTarget || r.shortfall === 0 ? '-' : <AmountText value={r.shortfall} />}
+              <td style={{ ...DT.td, textAlign: 'right', color: r.shortfall > 0 ? COLOR.danger : COLOR.subtext, fontSize: 16 }}>
+                {r.noTarget || r.shortfall === 0 ? '-' : fmtKRW(r.shortfall)}
               </td>
               <td style={{ ...DT.td, textAlign: 'right', color: COLOR.primary, fontWeight: 700 }}>
                 {r.points.toFixed(1)}점
@@ -594,11 +598,11 @@ function DetailTableBody({ rows, totals }) {
       <tfoot>
         <tr style={{ background: '#f0f4f8', fontWeight: 700 }}>
           <td style={{ ...DT.td, fontWeight: 700 }}>합계</td>
-          <td style={{ ...DT.td, textAlign: 'right' }}><AmountText value={totals.target} /></td>
-          <td style={{ ...DT.td, textAlign: 'right' }}><AmountText value={totals.actual} /></td>
+          <td style={{ ...DT.td, textAlign: 'right', fontSize: 16 }}>{fmtKRW(totals.target)}</td>
+          <td style={{ ...DT.td, textAlign: 'right', fontSize: 16 }}>{fmtKRW(totals.actual)}</td>
           <td style={{ ...DT.td, textAlign: 'right' }}>-</td>
-          <td style={{ ...DT.td, textAlign: 'right', color: totals.shortfall > 0 ? COLOR.danger : COLOR.subtext }}>
-            {totals.shortfall > 0 ? <AmountText value={totals.shortfall} /> : '-'}
+          <td style={{ ...DT.td, textAlign: 'right', color: totals.shortfall > 0 ? COLOR.danger : COLOR.subtext, fontSize: 16 }}>
+            {totals.shortfall > 0 ? fmtKRW(totals.shortfall) : '-'}
           </td>
           <td style={{ ...DT.td, textAlign: 'right', color: COLOR.primary }}>{totals.points.toFixed(1)}점</td>
         </tr>
@@ -660,9 +664,6 @@ function DetailTable({ results }) {
             <div style={{ overflowY: 'auto', flex: 1 }}>
               <DetailTableBody rows={modalRows} totals={totals} />
             </div>
-            <div style={{ padding: '10px 16px', fontSize: 12, color: COLOR.subtext, borderTop: '1px solid #f0f0f0' }}>
-              ※ 유 데이터는 실시간 집계 현황에 따라 변동될 수 있습니다.
-            </div>
           </div>
         </div>
       )}
@@ -680,18 +681,14 @@ function DetailTable({ results }) {
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <DetailTableBody rows={top5} totals={totals} />
       </div>
-
-      <div style={{ fontSize: 12, color: COLOR.subtext, marginTop: 8, flexShrink: 0 }}>
-        ※ 유 데이터는 실시간 집계 현황에 따라 변동될 수 있습니다.
-      </div>
     </div>
   );
 }
 
 const DT = {
-  table:       { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
-  th:          { padding: '10px 14px', fontWeight: 600, color: COLOR.subtext, borderBottom: `1px solid ${COLOR.border}`, textAlign: 'left', background: '#F9FAFB', whiteSpace: 'nowrap', position: 'sticky', top: 0, fontSize: 12 },
-  td:          { padding: '10px 14px', borderBottom: `1px solid ${COLOR.border}`, color: COLOR.text, whiteSpace: 'nowrap' },
+  table:       { width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: 13 },
+  th:          { padding: '6px 14px', fontWeight: 600, color: COLOR.subtext, borderBottom: '1px solid #C4CDD5', textAlign: 'left', background: '#F9FAFB', whiteSpace: 'nowrap', position: 'sticky', top: 0, fontSize: 12 },
+  td:          { padding: '8px 14px', borderBottom: '1px solid #C4CDD5', color: COLOR.text, whiteSpace: 'nowrap' },
   moreBtn:     { fontSize: 13, fontWeight: 600, color: COLOR.primary, background: '#EBF3FE', border: 'none', borderRadius: 8, padding: '6px 16px', cursor: 'pointer' },
   overlay:     { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' },
   modal:       { background: '#FFFFFF', borderRadius: 16, width: 860, maxWidth: '94vw', maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.14)' },
@@ -732,6 +729,13 @@ export default function Dashboard({ results, totalScore, finalScore, stats, rows
     .filter(r => r.targetAmount > 0)
     .reduce((s, r) => s + Math.max(0, r.targetAmount - r.actual), 0);
 
+  // KPI 카드 5개(배정액/잔액/목표액/실적/부족액)의 금액 글자 크기를 가장 작은 값 기준으로 통일
+  const amountScale = Math.min(
+    ...[stats?.allocatedBudget, stats?.remainingBudget, stats?.totalTargetSum, stats?.totalPurchase, totalShortfall]
+      .filter(v => v != null)
+      .map(scaleForValue),
+  );
+
   // 공공구매실적 상세보기: 모수 제외분 + 구매유형 미지정('없음'/공백) + 온누리상품권 제외
   // (공공구매실적 KPI가 실제로 집계하는 대상과 동일한 물품·용역·공사 확정 건만 표시)
   const purchaseDetailRows = rows.filter(r =>
@@ -757,33 +761,33 @@ export default function Dashboard({ results, totalScore, finalScore, stats, rows
       {showTargetModal && <TargetModal  results={results} onClose={() => setShowTargetModal(false)} />}
 
       {/* ── KPI 카드 6개: 점수 / 목표액 / 실적 / 부족액 / 배정액 / 잔액 ── */}
-      <div style={{ ...S.kpiRow, flexShrink: 0 }}>
+      <div style={S.kpiRow}>
         <KpiCard
           title="예산 배정액"
-          value={allocatedBudgetKnown ? <AmountText value={stats.allocatedBudget} /> : '-'}
+          value={allocatedBudgetKnown ? <AmountText value={stats.allocatedBudget} scale={amountScale} /> : '-'}
           sub="수용비·용역·연구·공사 항목 기준"
         />
         <KpiCard
           title="집행 가능 예산"
-          value={remainingBudgetKnown ? <AmountText value={stats.remainingBudget} /> : '-'}
+          value={remainingBudgetKnown ? <AmountText value={stats.remainingBudget} scale={amountScale} /> : '-'}
           sub="배정액 - 집행액"
           valueColor={remainingBudgetKnown && stats.remainingBudget < 0 ? COLOR.danger : '#3182F6'}
         />
         <KpiCard
           title="공공구매 목표액"
-          value={<AmountText value={stats?.totalTargetSum} />}
+          value={<AmountText value={stats?.totalTargetSum} scale={amountScale} />}
           sub="목표 합산"
           onClick={() => setShowTargetModal(true)}
         />
         <KpiCard
           title="공공구매 실적"
-          value={<AmountText value={stats?.totalPurchase} />}
+          value={<AmountText value={stats?.totalPurchase} scale={amountScale} />}
           sub="물품·용역·공사"
           onClick={() => setShowDetail(true)}
         />
         <KpiCard
           title="공공구매 부족액"
-          value={<AmountText value={totalShortfall} />}
+          value={<AmountText value={totalShortfall} scale={amountScale} />}
           sub="지표별 부족액 합산"
           valueColor={totalShortfall > 0 ? COLOR.danger : COLOR.success}
         />
@@ -797,13 +801,13 @@ export default function Dashboard({ results, totalScore, finalScore, stats, rows
       </div>
 
       {/* ── 좌 70% / 우 30% 그리드: 좌측은 바차트+상세현황 세로 적재, 우측은 그 합친 높이만큼 도넛/미달성지표 ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '7fr 3fr', gap: 20, flex: 1, minHeight: 0 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '7fr 3fr', gap: 20, flex: '8 1 0', minHeight: 0 }}>
 
         {/* 좌측 컬럼: 바 차트 (위) + 목표대비 상세현황 (아래) */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minHeight: 0 }}>
 
           {/* 유형별 목표 대비 달성률 */}
-          <div style={{ ...S.card, paddingTop: 12, paddingBottom: 6, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ ...S.card, paddingTop: 12, paddingBottom: 6, flex: '1 1 0', minHeight: 230, display: 'flex', flexDirection: 'column' }}>
             <div style={{ ...S.cardTitle, marginBottom: 6 }}>유형별 목표 대비 달성률</div>
             <div style={{ display: 'flex', gap: 16, fontSize: 12, color: COLOR.subtext, marginBottom: 6, flexShrink: 0 }}>
               <span><span style={{ ...S.dot, background: '#3182F6' }} />100% 이상</span>
@@ -816,8 +820,8 @@ export default function Dashboard({ results, totalScore, finalScore, stats, rows
                 100% 목표선
               </span>
             </div>
-            <div style={{ flexShrink: 0 }}>
-              <ResponsiveContainer width="100%" height={240}>
+            <div style={{ flex: 1, minHeight: 0 }}>
+              <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ left: 4, right: 8, top: 16, bottom: 8 }} barCategoryGap="35%">
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F2F4F6" />
                   <XAxis
@@ -852,7 +856,7 @@ export default function Dashboard({ results, totalScore, finalScore, stats, rows
           </div>
 
           {/* 목표대비 상세현황 */}
-          <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+          <div style={{ flex: '1 1 0', minHeight: 240, display: 'flex' }}>
             <DetailTable results={results} />
           </div>
 
@@ -889,25 +893,30 @@ const S = {
     display: 'flex',
     gap: 14,
     marginBottom: 12,
+    flex: '2 1 0',
+    minHeight: 130,
   },
   kpiCard: {
     flex: 1,
     background: '#FFFFFF',
     borderRadius: 16,
-    padding: '14px 18px 12px',
+    padding: '10px 14px 8px',
     border: '1px solid #F2F4F6',
     boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
     minWidth: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
   },
   kpiCardClickable: { cursor: 'pointer', transition: 'border-color 0.15s' },
   kpiCardScore: { textAlign: 'center', background: '#F0F6FF', border: '1px solid #BFDBFE' },
-  kpiTitle:    { fontSize: 12, color: COLOR.text, marginBottom: 6, fontWeight: 500, display: 'flex', justifyContent: 'space-between', alignItems: 'center', letterSpacing: '0.1px' },
+  kpiTitle:    { fontSize: 16, color: COLOR.text, marginBottom: 12, fontWeight: 500, display: 'flex', justifyContent: 'space-between', alignItems: 'center', letterSpacing: '0.1px' },
   kpiHint:     { fontSize: 11, color: COLOR.primary, fontWeight: 500 },
   kpiValueRow: { display: 'flex', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' },
-  kpiValue:    { fontSize: 20, fontWeight: 800, lineHeight: 1, color: COLOR.text, letterSpacing: '-0.5px' },
-  kpiValueScore: { fontSize: 34, marginTop: 4 },
+  kpiValue:    { fontSize: 36, fontWeight: 800, lineHeight: 1, color: COLOR.text, letterSpacing: '-0.5px' },
+  kpiValueScore: { marginTop: 4 },
   kpiUnit:     { fontSize: 13, color: COLOR.subtext },
-  kpiSub:      { fontSize: 12, color: COLOR.subtext, marginTop: 6 },
+  kpiSub:      { fontSize: 13, color: COLOR.subtext, marginTop: 12 },
   table: {
     width: '100%',
     borderCollapse: 'collapse',
