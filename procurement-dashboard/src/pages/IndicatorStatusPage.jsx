@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { DetailModal, TargetModal } from '../components/Dashboard';
-import AmountText from '../components/AmountText';
+import AmountText, { scaleForValue } from '../components/AmountText';
 
 const PCT = (r) => r == null ? '-' : (r * 100).toFixed(1) + '%';
 
@@ -145,40 +145,53 @@ export default function IndicatorStatusPage({ stats, finalScore, maxScore, resul
     .filter(r => r.targetAmount > 0)
     .reduce((s, r) => s + Math.max(0, r.targetAmount - r.actual), 0);
 
+  // 공공구매실적 상세보기: 모수 제외분 + 구매유형 미지정('없음'/공백) 제외
+  // (공공구매실적 KPI가 실제로 집계하는 대상과 동일한 물품·용역·공사 확정 건만 표시)
+  const purchaseDetailRows = rows.filter(r =>
+    r['제외여부'] !== 1 && ['물품', '용역', '공사'].includes(r['구매구분']),
+  );
+
+  // KPI 카드 5개(배정액/잔액/목표액/실적/부족액)의 금액 글자 크기를 가장 작은 값 기준으로 통일
+  const amountScale = Math.min(
+    ...[stats?.allocatedBudget, stats?.remainingBudget, stats?.totalTargetSum, stats?.totalPurchase, totalShortfall]
+      .filter(v => v != null)
+      .map(scaleForValue),
+  );
+
   return (
     <div style={S.page}>
 
-      {showDetail      && <DetailModal  rows={rows}     onClose={() => setShowDetail(false)} />}
+      {showDetail      && <DetailModal  rows={purchaseDetailRows} onClose={() => setShowDetail(false)} />}
       {showTargetModal && <TargetModal  results={list}  onClose={() => setShowTargetModal(false)} />}
 
       {/* KPI 카드 6개 */}
       <div style={S.kpiRow}>
         <KpiCard
           title="예산 배정액"
-          value={allocatedBudgetKnown ? <AmountText value={stats.allocatedBudget} /> : '-'}
+          value={allocatedBudgetKnown ? <AmountText value={stats.allocatedBudget} scale={amountScale} /> : '-'}
           sub="수용비·용역·연구·공사 항목 기준"
         />
         <KpiCard
           title="집행 가능 예산"
-          value={remainingBudgetKnown ? <AmountText value={stats.remainingBudget} /> : '-'}
+          value={remainingBudgetKnown ? <AmountText value={stats.remainingBudget} scale={amountScale} /> : '-'}
           sub="배정액 - 집행액"
           valueColor={remainingBudgetKnown && stats.remainingBudget < 0 ? '#F04452' : '#3182F6'}
         />
         <KpiCard
           title="공공구매 목표액"
-          value={<AmountText value={stats?.totalTargetSum} />}
+          value={<AmountText value={stats?.totalTargetSum} scale={amountScale} />}
           sub="목표 합산"
           onClick={() => setShowTargetModal(true)}
         />
         <KpiCard
           title="공공구매 실적"
-          value={<AmountText value={stats?.totalPurchase} />}
+          value={<AmountText value={stats?.totalPurchase} scale={amountScale} />}
           sub="물품·용역·공사"
           onClick={() => setShowDetail(true)}
         />
         <KpiCard
           title="공공구매 부족액"
-          value={<AmountText value={totalShortfall} />}
+          value={<AmountText value={totalShortfall} scale={amountScale} />}
           sub="지표별 부족액 합산"
           valueColor={totalShortfall > 0 ? '#F04452' : '#00B493'}
         />
@@ -195,6 +208,7 @@ export default function IndicatorStatusPage({ stats, finalScore, maxScore, resul
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {GROUPS.map(group => {
           const groupResults = group.keys.map(k => resultMap[k]).filter(Boolean);
+          if (groupResults.length === 0) return null;
 
           return (
             <div key={group.label} style={S.groupRow}>
@@ -220,17 +234,34 @@ export default function IndicatorStatusPage({ stats, finalScore, maxScore, resul
 const S = {
   page: { fontFamily: "-apple-system, 'Pretendard', 'Apple SD Gothic Neo', sans-serif" },
 
-  kpiRow:          { display: 'flex', gap: 14, marginBottom: 18 },
-  kpiCard:         { flex: 1, background: '#FFFFFF', borderRadius: 16, padding: '18px 18px 14px', border: '1px solid #F2F4F6', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', minWidth: 0 },
+  kpiRow: {
+    display: 'flex',
+    gap: 14,
+    marginBottom: 12,
+    flex: '2 1 0',
+    minHeight: 130,
+  },
+  kpiCard: {
+    flex: 1,
+    background: '#FFFFFF',
+    borderRadius: 16,
+    padding: '10px 14px 8px',
+    border: '1px solid #F2F4F6',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+    minWidth: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+  },
   kpiCardClickable: { cursor: 'pointer', transition: 'border-color 0.15s' },
-  kpiCardScore:    { textAlign: 'center', background: '#F0F6FF', border: '1px solid #BFDBFE' },
-  kpiTitle:        { fontSize: 13, color: '#191F28', marginBottom: 6, fontWeight: 500, display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  kpiHint:         { fontSize: 12, color: '#3182F6', fontWeight: 500 },
-  kpiValueRow:     { display: 'flex', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' },
-  kpiValue:        { fontSize: 22, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.5px' },
-  kpiValueScore:   { fontSize: 34, marginTop: 4 },
-  kpiUnit:         { fontSize: 13, color: '#8B95A1' },
-  kpiSub:          { fontSize: 13, color: '#8B95A1', marginTop: 5 },
+  kpiCardScore: { textAlign: 'center', background: '#F0F6FF', border: '1px solid #BFDBFE' },
+  kpiTitle:    { fontSize: 16, color: '#191F28', marginBottom: 12, fontWeight: 500, display: 'flex', justifyContent: 'space-between', alignItems: 'center', letterSpacing: '0.1px' },
+  kpiHint:     { fontSize: 11, color: '#3182F6', fontWeight: 500 },
+  kpiValueRow: { display: 'flex', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' },
+  kpiValue:    { fontSize: 36, fontWeight: 800, lineHeight: 1, color: '#191F28', letterSpacing: '-0.5px' },
+  kpiValueScore: { marginTop: 4 },
+  kpiUnit:     { fontSize: 13, color: '#8B95A1' },
+  kpiSub:      { fontSize: 13, color: '#8B95A1', marginTop: 12 },
 
   groupRow:   { display: 'flex', background: '#FFFFFF', borderRadius: 14, border: '1px solid #F2F4F6', overflow: 'hidden' },
   groupLabel: { width: 80, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px 8px' },

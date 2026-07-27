@@ -100,20 +100,20 @@ function DetailModal({ vendor, onClose }) {
 
 export default function VendorList() {
   const [search, setSearch]             = useState('');
-  const [certFilter, setCertFilter]     = useState('');
+  const [certFilters, setCertFilters]   = useState([]); // 다중 선택 (AND 조건)
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage]                 = useState(1);
   const [data, setData]                 = useState({ vendors: [], total: 0 });
   const [loading, setLoading]           = useState(false);
   const [selected, setSelected]         = useState(null);
 
-  const fetchVendors = useCallback(async (s, cert, status, pg) => {
+  const fetchVendors = useCallback(async (s, certs, status, pg) => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: pg, limit: LIMIT });
-      if (s)      params.set('search', s);
-      if (cert)   params.set('certType', cert);
-      if (status) params.set('status', status);
+      if (s)             params.set('search', s);
+      if (certs.length)  params.set('certTypes', certs.join(','));
+      if (status)        params.set('status', status);
       const res  = await fetch(`${API_BASE}/api/vendors/list?${params}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
       const json = await res.json();
       setData({ vendors: json.vendors ?? [], total: json.total ?? 0 });
@@ -125,14 +125,26 @@ export default function VendorList() {
   }, []);
 
   useEffect(() => {
-    fetchVendors(search, certFilter, statusFilter, page);
-  }, [search, certFilter, statusFilter, page, fetchVendors]);
+    fetchVendors(search, certFilters, statusFilter, page);
+  }, [search, certFilters, statusFilter, page, fetchVendors]);
+
+  // "전체"는 선택 초기화, 그 외 지표는 이미 선택돼 있으면 해제, 없으면 추가
+  const toggleCertFilter = (value) => {
+    setPage(1);
+    if (value === '') { setCertFilters([]); return; }
+    setCertFilters(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]);
+  };
 
   const totalPages = Math.ceil(data.total / LIMIT);
 
   return (
     <div>
       <style>{`
+        .certStatusFilterBtn {
+          -webkit-appearance: none;
+          -moz-appearance: none;
+          appearance: none;
+        }
         .certStatusFilterBtn,
         .certStatusFilterBtn:focus,
         .certStatusFilterBtn:focus-visible,
@@ -164,26 +176,35 @@ export default function VendorList() {
           <button type="submit" style={S.searchBtn}>검색</button>
         </form>
 
-        <div style={S.filterRow}>
-          {CERT_FILTERS.map(f => (
-            <button
-              key={f.value}
-              className={`certStatusFilterBtn${certFilter === f.value ? ' active' : ''}`}
-              style={{ ...S.filterBtn, ...(certFilter === f.value ? S.filterBtnActive : {}) }}
-              onClick={() => { setCertFilter(f.value); setPage(1); }}
-            >{f.label}</button>
-          ))}
+        <div style={{ marginTop: 12 }}>
+          <div style={S.filterGroupLabel}>인증 지표</div>
+          <div style={S.filterRow}>
+            {CERT_FILTERS.map(f => {
+              const isActive = f.value === '' ? certFilters.length === 0 : certFilters.includes(f.value);
+              return (
+                <button
+                  key={f.value}
+                  className={`certStatusFilterBtn${isActive ? ' active' : ''}`}
+                  style={{ ...S.filterBtn, ...(isActive ? S.filterBtnActive : {}) }}
+                  onClick={e => { toggleCertFilter(f.value); e.currentTarget.blur(); }}
+                >{f.label}</button>
+              );
+            })}
+          </div>
         </div>
 
-        <div style={{ ...S.filterRow, marginTop: 8 }}>
-          {STATUS_FILTERS.map(f => (
-            <button
-              key={f.value}
-              className={`certStatusFilterBtn${statusFilter === f.value ? ' active' : ''}`}
-              style={{ ...S.filterBtn, ...(statusFilter === f.value ? S.filterBtnActive : {}) }}
-              onClick={() => { setStatusFilter(f.value); setPage(1); }}
-            >{f.label}</button>
-          ))}
+        <div style={{ marginTop: 12 }}>
+          <div style={S.filterGroupLabel}>인증 상태</div>
+          <div style={S.filterRow}>
+            {STATUS_FILTERS.map(f => (
+              <button
+                key={f.value}
+                className={`certStatusFilterBtn${statusFilter === f.value ? ' active' : ''}`}
+                style={{ ...S.filterBtn, ...(statusFilter === f.value ? S.filterBtnActive : {}) }}
+                onClick={e => { setStatusFilter(f.value); setPage(1); e.currentTarget.blur(); }}
+              >{f.label}</button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -217,7 +238,7 @@ export default function VendorList() {
               {data.vendors.length === 0 && !loading && (
                 <tr>
                   <td colSpan={6} style={{ ...S.td, textAlign: 'center', color: '#94a3b8', padding: '40px 0' }}>
-                    {data.total === 0 && !search && !certFilter && !statusFilter
+                    {data.total === 0 && !search && certFilters.length === 0 && !statusFilter
                       ? '업체 데이터가 없습니다.'
                       : '검색 결과가 없습니다.'}
                   </td>
@@ -285,6 +306,7 @@ const S = {
   searchRow:       { display: 'flex', gap: 10, marginBottom: 14 },
   searchInput:     { flex: 1, padding: '10px 16px', border: '1px solid #F2F4F6', borderRadius: 10, fontSize: 14, outline: 'none', background: '#F9FAFB', color: '#191F28' },
   searchBtn:       { padding: '10px 22px', background: '#3182F6', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer' },
+  filterGroupLabel:{ fontSize: 12, color: '#8B95A1', fontWeight: 600, marginBottom: 5 },
   filterRow:       { display: 'flex', flexWrap: 'wrap', gap: 6 },
   filterBtn:       { padding: '5px 14px', border: '1px solid #F2F4F6', borderRadius: 99, fontSize: 13, background: '#FFFFFF', color: '#8B95A1', cursor: 'pointer' },
   filterBtnActive: { background: '#3182F6', color: '#fff', borderColor: '#3182F6', fontWeight: 600 },

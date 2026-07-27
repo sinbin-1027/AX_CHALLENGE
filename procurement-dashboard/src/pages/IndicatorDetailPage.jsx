@@ -1,7 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
 import AmountText from '../components/AmountText';
+import { buildExcludeTargets } from '../data/groupIndicators';
 
 const PCT = (r) => r == null ? '-' : (r * 100).toFixed(1) + '%';
+
+// 실적 내역 표는 컬럼이 고정폭이 아니라 AmountText의 길이별 자동 축소가 필요 없고,
+// 오히려 자릿수 차이로 글자 크기가 달라 보이는 원인이 되므로 고정 크기 텍스트로 표시
+const fmtKRW = (n) => n == null ? '-' : Math.round(Number(n)).toLocaleString('ko-KR') + '원';
 
 // ── 지표 목록 ─────────────────────────────────────────────────────────────────
 
@@ -97,18 +102,17 @@ function CertBadge({ label, color, bg }) {
 
 // ── 메인 페이지 ──────────────────────────────────────────────────────────────
 
-export default function IndicatorDetailPage({ rows = [], results = [], isYeonsoo = false }) {
+export default function IndicatorDetailPage({ rows = [], results = [], groupName }) {
   const [selectedKey, setSelectedKey] = useState('sme');
 
-  useEffect(() => {
-    if (!isYeonsoo && selectedKey === 'innovative_product') {
-      setSelectedKey('sme');
-    }
-  }, [isYeonsoo, selectedKey]);
+  const excludeKeys      = buildExcludeTargets(groupName);
+  const visibleIndicators = INDICATORS.filter(i => !excludeKeys.includes(i.key));
 
-  const visibleIndicators = isYeonsoo
-    ? INDICATORS
-    : INDICATORS.filter(i => i.key !== 'innovative_product');
+  useEffect(() => {
+    if (!visibleIndicators.some(i => i.key === selectedKey)) {
+      setSelectedKey(visibleIndicators[0]?.key ?? 'sme');
+    }
+  }, [groupName, selectedKey, visibleIndicators]);
 
   const result   = results.find(r => r.key === selectedKey);
   const indLabel = INDICATORS.find(i => i.key === selectedKey)?.label ?? '';
@@ -152,7 +156,7 @@ export default function IndicatorDetailPage({ rows = [], results = [], isYeonsoo
           <div style={{ ...S.kpiValue, color: result?.achieved ? '#00B493' : '#F04452' }}>
             {noTarget ? '-' : isAutoFull ? '100.0%' : PCT(rate)}
           </div>
-          <div style={{ fontSize: 11, marginTop: 5, fontWeight: 700, color: result?.achieved ? '#00B493' : '#F04452' }}>
+          <div style={{ fontSize: 13, marginTop: 10, fontWeight: 700, color: result?.achieved ? '#00B493' : '#F04452' }}>
             {result?.achieved ? '✓ 달성' : '✗ 미달성'}
           </div>
         </div>
@@ -221,8 +225,8 @@ export default function IndicatorDetailPage({ rows = [], results = [], isYeonsoo
                     title={row['예산명']}>
                     {row['예산명'] || '-'}
                   </td>
-                  <td style={{ ...S.td, textAlign: 'right', fontWeight: 600 }}>
-                    <AmountText value={row['물품금액']} />
+                  <td style={{ ...S.td, textAlign: 'right', fontWeight: 600, fontSize: 15 }}>
+                    {fmtKRW(row['물품금액'])}
                   </td>
                 </tr>
               ))}
@@ -245,10 +249,10 @@ const S = {
   selectHint:  { fontSize: 13, color: '#8B95A1' },
 
   kpiRow:  { display: 'flex', gap: 14, marginBottom: 18 },
-  kpiCard: { flex: 1, background: '#FFFFFF', borderRadius: 14, padding: '16px 18px', border: '1px solid #F2F4F6', minWidth: 0 },
-  kpiTitle:{ fontSize: 12, color: '#8B95A1', marginBottom: 8, fontWeight: 500 },
-  kpiValue:{ fontSize: 20, fontWeight: 800, color: '#191F28', letterSpacing: '-0.5px', lineHeight: 1 },
-  kpiSub:  { fontSize: 11, color: '#8B95A1', marginTop: 5 },
+  kpiCard: { flex: 1, background: '#FFFFFF', borderRadius: 14, padding: '20px 22px', border: '1px solid #F2F4F6', minWidth: 0 },
+  kpiTitle:{ fontSize: 14, color: '#8B95A1', marginBottom: 12, fontWeight: 500 },
+  kpiValue:{ fontSize: 26, fontWeight: 800, color: '#191F28', letterSpacing: '-0.5px', lineHeight: 1 },
+  kpiSub:  { fontSize: 13, color: '#8B95A1', marginTop: 10 },
 
   tableCard:   { background: '#FFFFFF', borderRadius: 14, border: '1px solid #F2F4F6', overflow: 'hidden' },
   tableHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px 12px', borderBottom: '1px solid #F2F4F6' },

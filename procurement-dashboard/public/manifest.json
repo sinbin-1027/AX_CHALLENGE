@@ -3,9 +3,9 @@
   "name": "KOSME 예산 관리 시스템",
   "icons": [
     {
-      "src": "favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
+      "src": "favicon.png",
+      "sizes": "64x64",
+      "type": "image/png"
     },
     {
       "src": "logo192.png",

@@ -214,12 +214,13 @@ router.get('/search', sessionAuth, async (req, res, next) => {
 
 router.get('/list', sessionAuth, async (req, res, next) => {
   try {
-    const search   = (req.query.search   ?? '').trim();
-    const certType = (req.query.certType ?? '').trim();
-    const status   = (req.query.status   ?? '').trim();
-    const page     = Math.max(1, parseInt(req.query.page  ?? '1'));
-    const limit    = Math.min(100, Math.max(1, parseInt(req.query.limit ?? '20')));
-    const offset   = (page - 1) * limit;
+    const search    = (req.query.search    ?? '').trim();
+    // certTypes: 콤마로 구분된 여러 지표 key. 전부 보유한(AND) 업체만 조회
+    const certTypes = (req.query.certTypes ?? '').split(',').map(s => s.trim()).filter(Boolean);
+    const status    = (req.query.status    ?? '').trim();
+    const page      = Math.max(1, parseInt(req.query.page  ?? '1'));
+    const limit     = Math.min(100, Math.max(1, parseInt(req.query.limit ?? '20')));
+    const offset    = (page - 1) * limit;
 
     const sharedParams = [];
     const wheres       = [];
@@ -230,9 +231,18 @@ router.get('/list', sessionAuth, async (req, res, next) => {
       wheres.push(`(v.업체명 ILIKE ${p} OR v.사업자번호 ILIKE ${p})`);
     }
 
-    if (certType && CERT_TYPE_TO_KIND[certType]) {
-      sharedParams.push(CERT_TYPE_TO_KIND[certType]);
-      wheres.push(`v.사업자번호 IN (SELECT DISTINCT 사업자번호 FROM vendors WHERE 인증종류 = $${sharedParams.length})`);
+    const certKinds = [...new Set(certTypes.map(t => CERT_TYPE_TO_KIND[t]).filter(Boolean))];
+    if (certKinds.length > 0) {
+      sharedParams.push(certKinds);
+      const kindsRef = `$${sharedParams.length}`;
+      sharedParams.push(certKinds.length);
+      const countRef = `$${sharedParams.length}`;
+      wheres.push(`v.사업자번호 IN (
+        SELECT 사업자번호 FROM vendors
+        WHERE 인증종류 = ANY(${kindsRef})
+        GROUP BY 사업자번호
+        HAVING COUNT(DISTINCT 인증종류) = ${countRef}
+      )`);
     }
 
     if (status && ['유효', '확인필요', '취소'].includes(status)) {
