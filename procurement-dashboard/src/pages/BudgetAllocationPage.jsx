@@ -23,7 +23,7 @@ function budgetRateColor(rate) {
 
 // 개별 항목 카드: 제목 → 잔액(강조) → 집행률 바 → 배정액 보조텍스트
 // (showBar=false면 바/보조텍스트 없이 금액만 표시 — 연간 배정액 카드용)
-function ItemCard({ title, allocated, executed, showBar = true, style }) {
+function ItemCard({ title, allocated, executed, showBar = true, style, valueStyle }) {
   const remaining = allocated - executed;
   const rate = allocated > 0 ? (executed / allocated) * 100 : 0;
   const color = budgetRateColor(rate);
@@ -31,7 +31,7 @@ function ItemCard({ title, allocated, executed, showBar = true, style }) {
   return (
     <div style={{ ...S.itemCard, ...style }}>
       <div style={S.kpiTitle}>{title}</div>
-      <div style={S.itemValue}><AmountText value={remaining} /></div>
+      <div style={{ ...S.itemValue, ...valueStyle }}><AmountText value={remaining} scale={1} /></div>
       {showBar && (
         <>
           <div style={S.itemBarRow}>
@@ -52,7 +52,7 @@ function GroupCard({ title, totalAllocated, items }) {
   return (
     <div style={{ ...S.itemCard, ...S.groupCard }}>
       <div style={S.kpiTitle}>{title}</div>
-      <div style={S.itemValue}><AmountText value={totalAllocated} /></div>
+      <div style={S.itemValue}><AmountText value={totalAllocated} scale={1} /></div>
       <div style={S.groupSubRow}>
         {items.map(it => (
           <ItemCard key={it.title} {...it} style={S.groupSubItem} />
@@ -151,6 +151,7 @@ export default function BudgetAllocationPage({ deptId, year }) {
           executed={0}
           showBar={false}
           style={S.standaloneCard}
+          valueStyle={{ fontSize: 15 }}
         />
 
         <GroupCard
@@ -178,6 +179,7 @@ export default function BudgetAllocationPage({ deptId, year }) {
 
       {/* 메인 테이블 */}
       <div style={S.card}>
+        <div style={S.tableScroll}>
         <table style={S.table}>
           <thead>
             <tr>
@@ -206,14 +208,15 @@ export default function BudgetAllocationPage({ deptId, year }) {
           <tfoot>
             <tr style={S.totalRow}>
               <td style={{ ...S.td, fontWeight: 700 }} colSpan={2}>합계</td>
-              <td style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}><AmountText value={total.배정액합계} /></td>
-              <td style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}><AmountText value={total.집행액합계} /></td>
-              <td style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}><AmountText value={total.잔액합계} /></td>
+              <td style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}><AmountText value={total.배정액합계} scale={1} /></td>
+              <td style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}><AmountText value={total.집행액합계} scale={1} /></td>
+              <td style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}><AmountText value={total.잔액합계} scale={1} /></td>
               <td style={{ ...S.td, textAlign: 'right', fontWeight: 700, color: rateColor(totalRate) }}>{PCT(totalRate)}</td>
               <td style={S.td}><RateBar rate={totalRate} /></td>
             </tr>
           </tfoot>
         </table>
+        </div>
       </div>
 
     </div>
@@ -238,9 +241,9 @@ function BudgetGroupRows({ group, isOpen, onToggle }) {
         <tr key={i} style={S.subRow}>
           <td style={{ ...S.td, ...S.subCell }}>{item.예산과목명}</td>
           <td style={{ ...S.td, textAlign: 'center' }}>{item.회계연도}</td>
-          <td style={{ ...S.td, textAlign: 'right' }}><AmountText value={item.배정액} /></td>
-          <td style={{ ...S.td, textAlign: 'right' }}><AmountText value={item.집행액} /></td>
-          <td style={{ ...S.td, textAlign: 'right' }}><AmountText value={item.잔액} /></td>
+          <td style={{ ...S.td, textAlign: 'right' }}><AmountText value={item.배정액} scale={1} /></td>
+          <td style={{ ...S.td, textAlign: 'right' }}><AmountText value={item.집행액} scale={1} /></td>
+          <td style={{ ...S.td, textAlign: 'right' }}><AmountText value={item.잔액} scale={1} /></td>
           <td style={{ ...S.td, textAlign: 'right', fontWeight: 700, color: rateColor(item.집행률) }}>
             {PCT(item.집행률)}
           </td>
@@ -252,9 +255,9 @@ function BudgetGroupRows({ group, isOpen, onToggle }) {
         <tr style={S.subtotalRow}>
           <td style={{ ...S.td, ...S.subtotalCell }}>소계</td>
           <td style={S.td} />
-          <td style={{ ...S.td, ...S.subtotalCell, textAlign: 'right' }}><AmountText value={subtotal.배정액합계} /></td>
-          <td style={{ ...S.td, ...S.subtotalCell, textAlign: 'right' }}><AmountText value={subtotal.집행액합계} /></td>
-          <td style={{ ...S.td, ...S.subtotalCell, textAlign: 'right' }}><AmountText value={subtotal.잔액합계} /></td>
+          <td style={{ ...S.td, ...S.subtotalCell, textAlign: 'right' }}><AmountText value={subtotal.배정액합계} scale={1} /></td>
+          <td style={{ ...S.td, ...S.subtotalCell, textAlign: 'right' }}><AmountText value={subtotal.집행액합계} scale={1} /></td>
+          <td style={{ ...S.td, ...S.subtotalCell, textAlign: 'right' }}><AmountText value={subtotal.잔액합계} scale={1} /></td>
           <td style={{ ...S.td, ...S.subtotalCell, textAlign: 'right', color: rateColor(subtotal.집행률평균) }}>
             {PCT(subtotal.집행률평균)}
           </td>
@@ -272,7 +275,7 @@ const S = {
   centerMsg: { padding: '80px 0', textAlign: 'center', color: '#8B95A1', fontSize: 14 },
 
   kpiRow:      { display: 'flex', gap: 14, marginBottom: 18, alignItems: 'stretch' },
-  kpiTitle:    { fontSize: 12, color: '#8B95A1', marginBottom: 8, fontWeight: 500 },
+  kpiTitle:    { fontSize: 15, color: '#8B95A1', marginBottom: 8, fontWeight: 600 },
 
   itemCard:       { background: '#FFFFFF', borderRadius: 16, padding: '18px 18px 16px', border: '1px solid #F2F4F6', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', minWidth: 0, display: 'flex', flexDirection: 'column' },
   standaloneCard: { flex: 1 },
@@ -289,10 +292,12 @@ const S = {
 
   card: { background: '#FFFFFF', borderRadius: 16, border: '1px solid #F2F4F6', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden' },
 
+  tableScroll: { overflowY: 'auto', overflowX: 'auto', maxHeight: 640 },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
   th: {
     padding: '12px 16px', fontWeight: 600, color: '#8B95A1', fontSize: 12,
     borderBottom: '1px solid #F2F4F6', textAlign: 'left', background: '#F9FAFB', whiteSpace: 'nowrap',
+    position: 'sticky', top: 0, zIndex: 1,
   },
   td: { padding: '10px 16px', borderBottom: '1px solid #F2F4F6', color: '#191F28', whiteSpace: 'nowrap' },
 

@@ -142,7 +142,7 @@ const S = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: 8,
+    gap: 3,
     padding: '20px 14px 18px',
     borderBottom: '1px solid rgba(255,255,255,0.12)',
     minHeight: 64,
@@ -154,7 +154,7 @@ const S = {
   logoImgCollapsed: { width: 32, height: 'auto', display: 'block', margin: '0 auto' },
   logoSubText: {
     color: 'rgba(255,255,255,0.85)',
-    fontSize: 15,
+    fontSize: 21,
     fontWeight: 700,
     letterSpacing: '0.2px',
     whiteSpace: 'nowrap',

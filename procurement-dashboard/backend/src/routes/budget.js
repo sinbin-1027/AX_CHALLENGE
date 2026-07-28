@@ -129,8 +129,9 @@ router.get('/allocation', sessionAuth, async (req, res, next) => {
       const 배정액합계 = items.reduce((s, r) => s + (Number(r.배정액) || 0), 0);
       const 집행액합계 = items.reduce((s, r) => s + (Number(r.집행액) || 0), 0);
       const 잔액합계   = items.reduce((s, r) => s + (Number(r.잔액)   || 0), 0);
-      const 집행률평균 = items.length
-        ? +(items.reduce((s, r) => s + (Number(r.집행률) || 0), 0) / items.length).toFixed(2)
+      // 항목별 집행률(%)을 단순 평균하지 않고 집행액합계/배정액합계로 재계산 (배정액 비중을 반영한 값)
+      const 집행률평균 = 배정액합계 > 0
+        ? +((집행액합계 / 배정액합계) * 100).toFixed(2)
         : 0;
 
       return {
