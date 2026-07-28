@@ -157,7 +157,7 @@ export default function IndicatorDetailPage({ rows = [], results = [], groupName
             {noTarget ? '-' : isAutoFull ? '100.0%' : PCT(rate)}
           </div>
           <div style={{ fontSize: 13, marginTop: 10, fontWeight: 700, color: result?.achieved ? '#00B493' : '#F04452' }}>
-            {result?.achieved ? '✓ 달성' : '✗ 미달성'}
+            {result?.achieved ? '달성' : '미달성'}
           </div>
         </div>
         <div style={S.kpiCard}>

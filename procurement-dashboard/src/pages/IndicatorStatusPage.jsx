@@ -76,8 +76,8 @@ function KpiCard({ title, value, unit, sub, valueColor, onClick, variant }) {
 // ── 지표 카드 ─────────────────────────────────────────────────────────────────
 function IndicatorCard({ r }) {
   const isAutoFull = r.denominator === 0 && r.achieved === true;
-  const dispRate   = isAutoFull ? 1 : (r.achievementRate ?? 0);
-  const barWidth   = Math.min(dispRate * 100, 100);
+  const dispRate   = isAutoFull ? 1 : Math.min(r.achievementRate ?? 0, 1);
+  const barWidth   = dispRate * 100;
   const rateColor  = r.achieved ? '#00B493' : '#F04452';
   const noTarget   = r.targetAmount === 0 && !isAutoFull;
   const shortfall  = !noTarget && !isAutoFull ? Math.max(0, r.targetAmount - r.actual) : 0;
@@ -89,24 +89,24 @@ function IndicatorCard({ r }) {
         {isAutoFull ? (
           <span style={S.badge.auto}>자동만점</span>
         ) : r.achieved ? (
-          <span style={S.badge.ok}>✓ 달성</span>
+          <span style={S.badge.ok}>달성</span>
         ) : (
-          <span style={S.badge.no}>✗ 미달성</span>
+          <span style={S.badge.no}>미달성</span>
         )}
       </div>
 
-      <div style={S.indRow}>
-        <span style={S.indLbl}>목표액</span>
-        <span style={S.indVal}>{noTarget ? '-' : <AmountText value={r.targetAmount} />}</span>
+      <div style={S.statRow}>
+        <span style={S.statLbl}>목표액</span>
+        <span style={S.statVal}>{noTarget ? '-' : <AmountText value={r.targetAmount} scale={1} />}</span>
       </div>
-      <div style={S.indRow}>
-        <span style={S.indLbl}>지출액</span>
-        <span style={S.indVal}><AmountText value={r.actual} /></span>
+      <div style={S.statRow}>
+        <span style={S.statLbl}>지출액</span>
+        <span style={S.statVal}><AmountText value={r.actual} scale={1} /></span>
       </div>
-      <div style={S.indRow}>
-        <span style={S.indLbl}>부족액</span>
-        <span style={{ ...S.indVal, color: shortfall > 0 ? '#F04452' : '#8B95A1', fontWeight: shortfall > 0 ? 700 : 500 }}>
-          {noTarget ? '-' : shortfall > 0 ? <AmountText value={shortfall} /> : '달성'}
+      <div style={S.statRow}>
+        <span style={S.statLbl}>부족액</span>
+        <span style={{ ...S.statVal, color: shortfall > 0 ? '#F04452' : '#8B95A1', fontWeight: shortfall > 0 ? 700 : 500 }}>
+          {noTarget ? '-' : shortfall > 0 ? <AmountText value={shortfall} scale={1} /> : '달성'}
         </span>
       </div>
 
@@ -270,9 +270,9 @@ const S = {
   indCard:    { flex: 1, background: '#FFFFFF', borderRadius: 12, padding: '13px 13px', border: '1px solid #F2F4F6', minWidth: 0 },
   indHeader:  { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 9, gap: 4 },
   indLabel:   { fontSize: 14, fontWeight: 700, color: '#191F28', lineHeight: 1.3 },
-  indRow:     { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 },
-  indLbl:     { fontSize: 12, color: '#8B95A1' },
-  indVal:     { fontSize: 13, color: '#191F28', fontWeight: 500 },
+  statRow:    { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 },
+  statLbl:    { fontSize: 12, color: '#8B95A1', flexShrink: 0 },
+  statVal:    { fontSize: 15, color: '#191F28', fontWeight: 700, textAlign: 'right' },
 
   barTrack: { height: 5, background: '#F2F4F6', borderRadius: 99, overflow: 'hidden' },
   barFill:  { height: '100%', borderRadius: 99, transition: 'width 0.3s ease' },

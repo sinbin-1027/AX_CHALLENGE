@@ -206,9 +206,9 @@ const S = {
   card:      { flex: 1, background: '#FFFFFF', borderRadius: 16, padding: '20px 20px 18px', border: '1px solid #F2F4F6', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', minWidth: 0 },
   cardTitle: { fontSize: 15, fontWeight: 700, color: '#191F28', letterSpacing: '-0.2px', marginBottom: 12 },
 
-  headline: { fontSize: 14, fontWeight: 700, marginTop: 14, letterSpacing: '-0.2px' },
-  sub:      { fontSize: 12, color: '#191F28', marginTop: 10, fontWeight: 500 },
-  footnote: { fontSize: 11, color: '#B0B8C1', marginTop: 4 },
+  headline: { fontSize: 17, fontWeight: 700, marginTop: 14, letterSpacing: '-0.2px' },
+  sub:      { fontSize: 15, color: '#191F28', marginTop: 10, fontWeight: 500 },
+  footnote: { fontSize: 12, color: '#B0B8C1', marginTop: 4 },
 
   snapshotStats: { display: 'flex', gap: 16, marginBottom: 14 },
   statCol:       { flex: 1 },

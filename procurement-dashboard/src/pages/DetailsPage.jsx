@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import AmountText from '../components/AmountText';
 
 const API_BASE = process.env.REACT_APP_API_URL || '';
@@ -38,16 +38,23 @@ const toDateInput = (v) => {
 };
 
 const TABLE_COLS = [
-  { key: '집행구분',       label: '집행구분',  align: 'center'               },
-  { key: '결의번호',       label: '결의번호',  align: 'left'                  },
-  { key: '발의일자',       label: '발의일자',  align: 'left',  fmt: fmtDate   },
-  { key: '구매구분',       label: '구매유형',  align: 'left'                  },
-  { key: '수령인사업자명', label: '구매처',    align: 'left',  maxWidth: 160  },
-  { key: '적요',           label: '적요',      align: 'left',  maxWidth: 200  },
-  { key: '발주품목명',     label: '품목명',    align: 'left',  maxWidth: 160  },
-  { key: '예산명',         label: '예산명',    align: 'left',  maxWidth: 180  },
-  { key: '물품금액',       label: '금액',      align: 'right'                 },
+  { key: '집행구분',       label: '집행구분',  align: 'center', width: 100, resizable: false },
+  { key: '결의번호',       label: '결의번호',  align: 'left',   width: 100 },
+  { key: '발의일자',       label: '발의일자',  align: 'left',   width: 110, fmt: fmtDate },
+  { key: '구매구분',       label: '구매유형',  align: 'left',   width: 90  },
+  { key: '수령인사업자명', label: '구매처',    align: 'left',   width: 160 },
+  { key: '적요',           label: '적요',      align: 'left',   width: 200 },
+  { key: '발주품목명',     label: '품목명',    align: 'left',   width: 160 },
+  { key: '예산명',         label: '예산명',    align: 'left',   width: 180 },
+  { key: '물품금액',       label: '금액',      align: 'right',  width: 110 },
 ];
+
+// 컬럼 리사이즈 대상이 아닌 고정 컬럼(모수 제외 체크박스 / 순번 / 구분 배지)의 기본 너비
+// (텍스트가 잘리지 않도록 항상 이 너비 그대로 고정 — 드래그로 리사이즈 불가)
+const EXTRA_COL_WIDTHS = { __exclude: 90, __seq: 60, __type: 80 };
+
+// 테이블 전체 컬럼의 순서 (colWidths의 key 목록이자 리사이즈 시 이웃 컬럼을 찾는 기준)
+const COL_ORDER = ['__exclude', '__seq', ...TABLE_COLS.map(c => c.key), '__type'];
 
 const FLAGS = [
   { key: '중소기업제품(연동)',       label: '중소기업'   },
@@ -174,6 +181,17 @@ function EditPanel({ mode, draft, selectedRow, onChange, onToggleFlag, onConfirm
   );
 }
 
+// ── 컬럼 너비 드래그 핸들 ────────────────────────────────────────────────────
+function ResizeHandle({ colKey, onResizeStart }) {
+  return (
+    <span
+      onMouseDown={e => onResizeStart(colKey, e)}
+      onClick={e => e.stopPropagation()}
+      style={P.resizeHandle}
+    />
+  );
+}
+
 // ── 테이블 행 ────────────────────────────────────────────────────────────────
 function TableRow({ row, index, excluded, isSelected, onRowClick, onToggleExclude }) {
   const isRaw      = row.__source === 'raw';
@@ -206,7 +224,6 @@ function TableRow({ row, index, excluded, isSelected, onRowClick, onToggleExclud
           style={{
             ...P.td,
             textAlign: c.align,
-            maxWidth: c.maxWidth,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             fontWeight: c.key === '물품금액' ? 600 : 400,
@@ -257,10 +274,62 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
   const [selectedRow, setSelectedRow] = useState(null);
   const [panelDraft, setPanelDraft]   = useState({});
   const [toast, setToast]             = useState(null);
+  // 컬럼 너비는 %로 관리 (합계 100 유지 → 가로 스크롤 없이 항상 컨테이너 폭에 꽉 참)
+  const [colWidths, setColWidths]     = useState(() => {
+    const px = { ...EXTRA_COL_WIDTHS, ...Object.fromEntries(TABLE_COLS.map(c => [c.key, c.width])) };
+    const total = COL_ORDER.reduce((s, k) => s + px[k], 0);
+    return Object.fromEntries(COL_ORDER.map(k => [k, (px[k] / total) * 100]));
+  });
 
   useEffect(() => {
     setExcludedSet(new Set(excludedSetProp));
   }, [excludedSetProp]);
+
+  // ── 컬럼 너비 드래그 리사이즈 (드래그한 컬럼과 바로 오른쪽 이웃 컬럼끼리 폭을 주고받음) ──
+  const tableWrapRef = useRef(null);
+  const resizingRef  = useRef(null);
+  const MIN_COL_PX   = 40;
+
+  const handleResizeMove = useCallback((e) => {
+    const r = resizingRef.current;
+    if (!r) return;
+    const deltaPct = ((e.clientX - r.startX) / r.containerWidth) * 100;
+    let newLeft  = r.startLeftPct + deltaPct;
+    let newRight = r.startRightPct - deltaPct;
+    if (newLeft < r.minPct)       { newRight -= (r.minPct - newLeft);  newLeft  = r.minPct; }
+    else if (newRight < r.minPct) { newLeft  -= (r.minPct - newRight); newRight = r.minPct; }
+    setColWidths(prev => ({ ...prev, [r.leftKey]: newLeft, [r.rightKey]: newRight }));
+  }, []);
+
+  const handleResizeEnd = useCallback(() => {
+    resizingRef.current = null;
+    document.removeEventListener('mousemove', handleResizeMove);
+    document.removeEventListener('mouseup', handleResizeEnd);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }, [handleResizeMove]);
+
+  const handleResizeStart = useCallback((key, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const idx      = COL_ORDER.indexOf(key);
+    const rightKey = COL_ORDER[idx + 1];
+    if (!rightKey) return; // 마지막 컬럼은 오른쪽 이웃이 없어 리사이즈 불가 (이전 컬럼 핸들로 조정)
+
+    const containerWidth = tableWrapRef.current?.getBoundingClientRect().width || 1;
+    resizingRef.current = {
+      leftKey: key, rightKey,
+      startX: e.clientX,
+      startLeftPct:  colWidths[key],
+      startRightPct: colWidths[rightKey],
+      containerWidth,
+      minPct: (MIN_COL_PX / containerWidth) * 100,
+    };
+    document.addEventListener('mousemove', handleResizeMove);
+    document.addEventListener('mouseup', handleResizeEnd);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [colWidths, handleResizeMove, handleResizeEnd]);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
 
@@ -476,19 +545,26 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
 
       {/* 테이블 */}
       <div style={P.tableCard}>
-        <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: tableMaxH }}>
+        <div ref={tableWrapRef} style={{ overflowX: 'hidden', overflowY: 'auto', maxHeight: tableMaxH }}>
           <table style={P.table}>
+            <colgroup>
+              <col style={{ width: `${colWidths.__exclude}%` }} />
+              <col style={{ width: `${colWidths.__seq}%` }} />
+              {TABLE_COLS.map(c => <col key={c.key} style={{ width: `${colWidths[c.key]}%` }} />)}
+              <col style={{ width: `${colWidths.__type}%` }} />
+            </colgroup>
             <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
               <tr style={{ background: '#F9FAFB' }}>
-                <th style={{ ...P.th, width: 40, textAlign: 'center' }}>모수 제외</th>
-                <th style={{ ...P.th, width: 36, textAlign: 'center' }}>순번</th>
+                <th style={{ ...P.th, textAlign: 'center' }}>모수 제외</th>
+                <th style={{ ...P.th, textAlign: 'center' }}>순번</th>
                 {TABLE_COLS.map(c => {
-                  const sortable = SORTABLE_KEYS.has(c.key);
-                  const active   = sortConfig.key === c.key;
+                  const sortable  = SORTABLE_KEYS.has(c.key);
+                  const active    = sortConfig.key === c.key;
+                  const resizable = c.resizable !== false;
                   return (
                     <th
                       key={c.key}
-                      style={{ ...P.th, textAlign: c.align, cursor: sortable ? 'pointer' : 'default', userSelect: 'none' }}
+                      style={{ ...P.th, textAlign: c.align, cursor: sortable ? 'pointer' : 'default', userSelect: 'none', position: resizable ? 'relative' : undefined }}
                       onClick={sortable ? () => handleSort(c.key) : undefined}
                     >
                       {c.label}
@@ -499,10 +575,11 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
                          : '⇅'}
                         </span>
                       )}
+                      {resizable && <ResizeHandle colKey={c.key} onResizeStart={handleResizeStart} />}
                     </th>
                   );
                 })}
-                <th style={{ ...P.th, width: 80, textAlign: 'center' }}>구분</th>
+                <th style={{ ...P.th, textAlign: 'center' }}>구분</th>
               </tr>
             </thead>
             <tbody>
@@ -557,9 +634,10 @@ const P = {
   legend:       { display: 'flex', gap: 16, alignItems: 'center', marginBottom: 10, fontSize: 12, color: '#8B95A1' },
   dot:          { display: 'inline-block', width: 12, height: 12, borderRadius: 3, marginRight: 4 },
   tableCard:    { background: '#FFFFFF', borderRadius: 16, border: '1px solid #F2F4F6', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden' },
-  table:        { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
-  th:           { padding: '11px 12px', fontWeight: 600, color: '#8B95A1', borderBottom: '1px solid #F2F4F6', textAlign: 'left', whiteSpace: 'nowrap', background: '#F9FAFB', fontSize: 12 },
+  table:        { width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: 13 },
+  th:           { padding: '11px 12px', fontWeight: 600, color: '#8B95A1', borderBottom: '1px solid #F2F4F6', textAlign: 'left', whiteSpace: 'nowrap', background: '#F9FAFB', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis' },
   td:           { padding: '10px 12px', borderBottom: '1px solid #F2F4F6', whiteSpace: 'nowrap', color: '#191F28' },
+  resizeHandle: { position: 'absolute', top: 0, right: -3, width: 6, height: '100%', cursor: 'col-resize', zIndex: 3, touchAction: 'none' },
   badgeGray:    { display: 'inline-block', padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: '#F2F4F6', color: '#8B95A1' },
   badgeBlue:    { display: 'inline-block', padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: '#EBF3FE', color: '#3182F6' },
 };
