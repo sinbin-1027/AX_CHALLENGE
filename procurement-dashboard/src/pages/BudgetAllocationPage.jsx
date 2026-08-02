@@ -40,7 +40,7 @@ function ItemCard({ title, allocated, executed, showBar = true, style, valueStyl
             </div>
             <span style={{ ...S.itemBarPct, color }}>{PCT(rate)}</span>
           </div>
-          <div style={S.itemSub}>배정 <AmountText value={allocated} /></div>
+          <div style={S.itemSub}>배정 <AmountText value={allocated} scale={1} /></div>
         </>
       )}
     </div>
