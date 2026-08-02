@@ -284,7 +284,7 @@ const S = {
   itemBarTrack:   { flex: 1, height: 5, background: '#F2F4F6', borderRadius: 99, overflow: 'hidden' },
   itemBarFill:    { height: '100%', borderRadius: 99, transition: 'width 0.3s ease' },
   itemBarPct:     { fontSize: 11, fontWeight: 700, flexShrink: 0, width: 36, textAlign: 'right' },
-  itemSub:        { fontSize: 11, color: '#8B95A1', marginTop: 6, fontWeight: 500 },
+  itemSub:        { fontSize: 14, color: '#8B95A1', marginTop: 6, fontWeight: 500 },
 
   groupCard:     { flex: 2.2 },
   groupSubRow:   { display: 'flex', gap: 10, marginTop: 14, paddingTop: 14, borderTop: '1px solid #F2F4F6' },
