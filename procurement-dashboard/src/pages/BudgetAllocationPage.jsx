@@ -23,7 +23,7 @@ function budgetRateColor(rate) {
 
 // 개별 항목 카드: 제목 → 잔액(강조) → 집행률 바 → 배정액 보조텍스트
 // (showBar=false면 바/보조텍스트 없이 금액만 표시 — 연간 배정액 카드용)
-function ItemCard({ title, allocated, executed, showBar = true, style, valueStyle }) {
+function ItemCard({ title, allocated, executed, showBar = true, style, valueStyle, subStyle }) {
   const remaining = allocated - executed;
   const rate = allocated > 0 ? (executed / allocated) * 100 : 0;
   const color = budgetRateColor(rate);
@@ -40,7 +40,7 @@ function ItemCard({ title, allocated, executed, showBar = true, style, valueStyl
             </div>
             <span style={{ ...S.itemBarPct, color }}>{PCT(rate)}</span>
           </div>
-          <div style={S.itemSub}>배정 <AmountText value={allocated} scale={1} /></div>
+          <div style={{ ...S.itemSub, ...subStyle }}>배정 <AmountText value={allocated} scale={1} /></div>
         </>
       )}
     </div>
@@ -55,7 +55,7 @@ function GroupCard({ title, totalAllocated, items }) {
       <div style={S.itemValue}><AmountText value={totalAllocated} scale={1} /></div>
       <div style={S.groupSubRow}>
         {items.map(it => (
-          <ItemCard key={it.title} {...it} style={S.groupSubItem} />
+          <ItemCard key={it.title} {...it} style={S.groupSubItem} subStyle={{ fontSize: 12 }} />
         ))}
       </div>
     </div>

@@ -82,7 +82,7 @@ export default function VendorRecommend({ insufficientKeys = [] }) {
     <div>
       {/* 검색 컨트롤 */}
       <div style={S.card}>
-        <div style={S.cardTitle}>추천 업체 검색</div>
+        <div style={S.cardTitle}>업체 검색</div>
 
         <div style={S.insufficientWrap}>
           <span style={S.insufficientLabel}>현재 미달성 지표</span>

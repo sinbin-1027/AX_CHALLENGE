@@ -511,7 +511,7 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
           <div>
             <div style={P.pageTitle}>구매 실적 등록</div>
             <div style={P.pageSub}>
-              전체 {rows.length.toLocaleString()}건 · <AmountText value={total} />
+              전체 {rows.length.toLocaleString()}건 · <AmountText value={total} scale={1} />
               {excludedSet.size > 0 && (
                 <span style={P.excludeBadge}>모수 제외 {excludedSet.size}건 (<AmountText value={excludedTotal} />)</span>
               )}
