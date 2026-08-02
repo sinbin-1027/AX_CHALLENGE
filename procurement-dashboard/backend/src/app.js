@@ -4,6 +4,7 @@ const express        = require('express');
 const cors           = require('cors');
 const path           = require('path');
 const { initDB }     = require('./db/database');
+const ipWhitelist       = require('./middleware/ipWhitelist');
 const authRoute        = require('./routes/auth');
 const dataRoute        = require('./routes/data');
 const vendorsRoute     = require('./routes/vendors');
@@ -16,6 +17,12 @@ const yearsRoute        = require('./routes/years');
 
 const app  = express();
 const PORT = process.env.PORT || 4000;
+
+// Elice Cloud 터널(리버스 프록시)을 거치므로 X-Forwarded-For 기준으로 실제 클라이언트 IP를 인식
+app.set('trust proxy', true);
+
+// IP 화이트리스트 (ENABLE_IP_WHITELIST=true일 때만 동작) — 정적 파일/로그인 페이지 포함 전체 앱 최상단에 적용
+app.use(ipWhitelist);
 
 app.use(cors({
   origin: [
