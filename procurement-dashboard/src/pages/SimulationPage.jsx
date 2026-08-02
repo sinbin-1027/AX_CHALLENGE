@@ -66,15 +66,46 @@ function SummaryCard({ label, value, sub, valueColor }) {
   );
 }
 
+// ── 미달성 지표 카드 (칩 목록 + 부족금액 합계, 전체 표시) ─────────────────────
+function InsufficientCard({ items }) {
+  // 기존에 지표별로 계산돼 있는 부족액(목표액 - 실적)을 그대로 합산
+  const totalShortfall = items.reduce((s, r) => s + Math.max(0, r.targetAmount - r.actual), 0);
+
+  return (
+    <div style={{ ...SC.card, flex: 3 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
+        <div style={SC.label}>미달성 지표{items.length > 0 ? ` (${items.length}개)` : ''}</div>
+        {items.length > 0 && (
+          <div style={SC.shortfallTotal}>
+            총 <span style={SC.shortfallAmount}><AmountText value={totalShortfall} scale={1} /></span> 부족
+          </div>
+        )}
+      </div>
+      {items.length === 0 ? (
+        <div style={{ fontSize: 18, fontWeight: 700, color: COLOR.success, marginTop: 10 }}>모든 지표 달성</div>
+      ) : (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14, overflow: 'hidden' }}>
+          {items.map(r => (
+            <span key={r.key} style={SC.chip}>{r.label}</span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const SC = {
-  card:  { background: '#fff', borderRadius: 16, padding: '20px 24px', border: `1px solid ${COLOR.border}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', flex: 1 },
-  label: { fontSize: 12, color: COLOR.subtext, fontWeight: 500, marginBottom: 6 },
-  value: { fontSize: 24, fontWeight: 800, letterSpacing: '-0.5px', lineHeight: 1 },
-  sub:   { fontSize: 12, color: COLOR.subtext, marginTop: 6 },
+  card:  { background: '#fff', borderRadius: 16, padding: '6px 26px', border: `1px solid ${COLOR.border}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', flex: 1, height: 152, display: 'flex', flexDirection: 'column', justifyContent: 'center', overflow: 'hidden' },
+  label: { fontSize: 14, color: COLOR.subtext, fontWeight: 500, marginBottom: 14 },
+  value: { fontSize: 30, fontWeight: 800, letterSpacing: '-0.5px', lineHeight: 1 },
+  sub:   { fontSize: 14, color: COLOR.subtext, marginTop: 14 },
+  chip:  { fontSize: 14, fontWeight: 500, color: '#4E5968', background: '#F2F4F6', border: '1px solid #E5E8EB', padding: '5px 12px', borderRadius: 99, whiteSpace: 'nowrap' },
+  shortfallTotal:  { fontSize: 14, fontWeight: 600, color: '#4E5968', whiteSpace: 'nowrap' },
+  shortfallAmount: { fontSize: 14, color: '#E5484D', fontWeight: 700 },
 };
 
 // ── 메인 ─────────────────────────────────────────────────────────────────────
-export default function SimulationPage({ rows = [], results = [], finalScore = 0, maxScore = 4 }) {
+export default function SimulationPage({ rows = [], results = [], finalScore = 0, maxScore = 4, remainingBudget = null }) {
   const [amount, setAmount]             = useState('');
   const [purchaseType, setPurchaseType] = useState('물품');
   const [checked, setChecked]           = useState(new Set());
@@ -107,8 +138,11 @@ export default function SimulationPage({ rows = [], results = [], finalScore = 0
 
   const resultMap = Object.fromEntries(results.map(r => [r.key, r]));
 
-  const achieved    = results.filter(r => r.achieved);
-  const totalPurchaseAll = results.reduce((s, r) => s + (r.actual ?? 0), 0);
+  // results는 이미 App.js에서 직군별 excludeTargets가 적용된 calcEngine 결과라서
+  // (지표 현황/지표별 실적 상세/목표대비 상세현황과 동일한 필터링) 별도 매핑 없이 그대로 사용
+  const insufficient = results.filter(r => !r.achieved && r.targetAmount > 0);
+
+  const remainingBudgetKnown = remainingBudget != null;
 
   const changes = simResult
     ? simResult.results
@@ -144,10 +178,10 @@ export default function SimulationPage({ rows = [], results = [], finalScore = 0
     : COLOR.text;
 
   return (
-    <div style={{ fontFamily: "'Pretendard', 'Apple SD Gothic Neo', sans-serif" }}>
+    <div style={{ fontFamily: "'Pretendard', 'Apple SD Gothic Neo', sans-serif", height: '100%', display: 'flex', flexDirection: 'column' }}>
 
       {/* ── 요약 카드 ── */}
-      <div style={{ display: 'flex', gap: 14, marginBottom: 20 }}>
+      <div style={{ display: 'flex', gap: 14, marginBottom: 20, alignItems: 'stretch', flexShrink: 0 }}>
         <SummaryCard
           label="현재 공공구매 점수"
           value={`${finalScore.toFixed(2)}점`}
@@ -155,28 +189,18 @@ export default function SimulationPage({ rows = [], results = [], finalScore = 0
           valueColor={scoreColor}
         />
         <SummaryCard
-          label="달성 지표"
-          value={`${achieved.length} / ${results.length}개`}
-          sub={results.length ? `달성률 ${((achieved.length / results.length) * 100).toFixed(1)}%` : '-'}
-          valueColor={achieved.length >= results.length * 0.7 ? COLOR.success : COLOR.danger}
+          label="집행 가능 예산"
+          value={remainingBudgetKnown ? <AmountText value={remainingBudget} scale={1} /> : '-'}
+          sub="배정액 - 집행액"
+          valueColor={remainingBudgetKnown && remainingBudget < 0 ? COLOR.danger : COLOR.primary}
         />
-        <SummaryCard
-          label="총 구매 실적"
-          value={<AmountText value={rows.filter(r => (r['제외여부'] ?? 0) === 0).reduce((s, r) => s + (Number(r['물품금액']) || 0), 0)} />}
-          sub={`${rows.length}건`}
-        />
-        <SummaryCard
-          label="미달성 지표"
-          value={`${results.filter(r => !r.achieved && r.targetAmount > 0).length}개`}
-          sub="추가 구매 필요"
-          valueColor={COLOR.danger}
-        />
+        <InsufficientCard items={insufficient} />
       </div>
 
       {/* ── 시뮬레이션 패널 ── */}
       <div style={P.panel}>
         <div style={P.header}>
-          <div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
             <div style={P.title}>실적 시뮬레이션</div>
             <div style={P.desc}>구매 예정 건을 입력하면 지표별 달성률과 점수 변화를 미리 확인할 수 있습니다.</div>
           </div>
@@ -310,11 +334,11 @@ export default function SimulationPage({ rows = [], results = [], finalScore = 0
                             return (
                               <tr key={c.key} style={{ background: rowBg }}>
                                 <td style={{ ...P.td, fontWeight: 600 }}>{c.label}</td>
-                                <td style={{ ...P.td, textAlign: 'right', color: COLOR.subtext }}><AmountText value={c.simTarget} /></td>
-                                <td style={{ ...P.td, textAlign: 'right' }}><AmountText value={c.curActual} /></td>
-                                <td style={{ ...P.td, textAlign: 'right', fontWeight: 700 }}><AmountText value={c.simActual} /></td>
+                                <td style={{ ...P.td, textAlign: 'right', color: COLOR.subtext }}><AmountText value={c.simTarget} scale={1} /></td>
+                                <td style={{ ...P.td, textAlign: 'right' }}><AmountText value={c.curActual} scale={1} /></td>
+                                <td style={{ ...P.td, textAlign: 'right', fontWeight: 700 }}><AmountText value={c.simActual} scale={1} /></td>
                                 <td style={{ ...P.td, textAlign: 'right', color: aDiffColor, fontWeight: 700 }}>
-                                  {c.actualDiff > 0 ? '+' : ''}<AmountText value={c.actualDiff} />
+                                  {c.actualDiff > 0 ? '+' : ''}<AmountText value={c.actualDiff} scale={1} />
                                 </td>
                                 <td style={{ ...P.td, textAlign: 'right', color: c.curAchieved ? COLOR.success : COLOR.danger }}>
                                   {PCT(c.curRate)}
@@ -358,14 +382,14 @@ export default function SimulationPage({ rows = [], results = [], finalScore = 0
 
 // ── 스타일 ───────────────────────────────────────────────────────────────────
 const P = {
-  panel:        { background: '#fff', borderRadius: 16, border: `1px solid ${COLOR.border}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden' },
-  header:       { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '22px 28px', borderBottom: `1px solid ${COLOR.border}` },
+  panel:        { background: '#fff', borderRadius: 16, border: `1px solid ${COLOR.border}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' },
+  header:       { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 28px', borderBottom: `1px solid ${COLOR.border}`, flexShrink: 0 },
   title:        { fontSize: 18, fontWeight: 800, color: COLOR.text, letterSpacing: '-0.3px', marginBottom: 4 },
   desc:         { fontSize: 13, color: COLOR.subtext },
   resetBtn:     { padding: '8px 18px', background: '#F2F4F6', color: COLOR.text, border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', alignSelf: 'flex-start' },
-  body:         { display: 'flex', gap: 0 },
+  body:         { display: 'flex', gap: 0, flex: 1, minHeight: 0 },
   inputPane:    { flex: '0 0 360px', borderRight: `1px solid ${COLOR.border}`, padding: '24px 20px 24px 28px', display: 'flex', flexDirection: 'column', gap: 20 },
-  resultPane:   { flex: 1, padding: '24px 28px 24px 20px', display: 'flex', flexDirection: 'column' },
+  resultPane:   { flex: 1, minHeight: 0, padding: '24px 28px 24px 20px', display: 'flex', flexDirection: 'column', overflowY: 'auto' },
   fieldGroup:   { display: 'flex', flexDirection: 'column', gap: 8 },
   label:        { fontSize: 12, fontWeight: 700, color: COLOR.subtext, textTransform: 'uppercase', letterSpacing: '0.5px' },
   amountInput:  { flex: 1, padding: '11px 14px', border: `1.5px solid ${COLOR.border}`, borderRadius: 10, fontSize: 15, outline: 'none', background: COLOR.bg, color: COLOR.text, fontWeight: 600 },

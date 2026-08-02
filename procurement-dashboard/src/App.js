@@ -242,6 +242,7 @@ function AppLayout({ onLogout }) {
                 results={result?.results ?? []}
                 finalScore={result?.finalScore ?? 0}
                 maxScore={selectedDept?.score_weight}
+                remainingBudget={budgetSummary.remainingBudget}
               />
             } />
             <Route path="/procurement/vendors" element={<VendorRecommend insufficientKeys={(result?.results ?? []).filter(r => !r.achieved).map(r => r.key)} />} />
