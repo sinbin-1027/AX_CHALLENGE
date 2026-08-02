@@ -491,25 +491,6 @@ function RightTopPanel({ results, rows, stats }) {
 
 // ── 목표대비 상세현황 테이블 ─────────────────────────────────────────────────
 
-const MODAL_GROUPS = [
-  { label: '중소기업',       key: 'sme' },
-  { label: '창업기업',       key: 'startup' },
-  { label: '여성기업(물품)', key: 'women_goods' },
-  { label: '여성기업(용역)', key: 'women_service' },
-  { label: '여성기업(공사)', key: 'women_construction' },
-  { label: '사회적기업',     key: 'social_enterprise' },
-  { label: '사회적협동조합', key: 'cooperative' },
-  { label: '장애인기업',     key: 'disabled_enterprise' },
-  { label: '장애인표준사업장', key: 'standard_workshop' },
-  { label: '중증장애인',     key: 'severe_disabled' },
-  { label: '기술개발제품',   key: 'tech_development' },
-  { label: '시범구매',       key: 'pilot_purchase' },
-  { label: 'NEP',            key: 'nep' },
-  { label: '녹색제품',       key: 'green_product' },
-  { label: '자활용사촌',     key: 'jawal_veteran' },
-  { label: '온누리상품권',   key: 'onnuri_voucher' },
-];
-
 function rateColor(rate) {
   if (rate === null) return COLOR.subtext;
   if (rate >= 1)     return COLOR.success;
@@ -624,17 +605,16 @@ function toDetailRow(label, r) {
 function DetailTable({ results }) {
   const [showModal, setShowModal] = useState(false);
 
-  const resultMap = Object.fromEntries(results.map(r => [r.key, r]));
-
   const top5 = results
     .filter(r => r.targetAmount > 0)
     .map(r => toDetailRow(r.label, r))
     .sort((a, b) => b.shortfall - a.shortfall)
     .slice(0, 5);
 
-  // 목표액 자체가 없는(noTarget) 항목은 맨 아래로, 나머지는 부족액 큰 순
-  const modalRows = MODAL_GROUPS
-    .map(({ label, key }) => toDetailRow(label, resultMap[key]))
+  // 직군에 실제 적용되는 지표(results)만 대상으로 함 — 목표액 자체가 없는(noTarget) 항목은
+  // 맨 아래로, 나머지는 부족액 큰 순으로 정렬
+  const modalRows = results
+    .map(r => toDetailRow(r.label, r))
     .sort((a, b) => {
       if (a.noTarget !== b.noTarget) return a.noTarget ? 1 : -1;
       return b.shortfall - a.shortfall;
@@ -742,10 +722,10 @@ export default function Dashboard({ results, totalScore, finalScore, stats, rows
     r['제외여부'] !== 1 && ['물품', '용역', '공사'].includes(r['구매구분']),
   );
 
-  // 바 차트 데이터 (막대는 100%에서 캡, 툴팁에는 실제 달성률 그대로 표시)
+  // 바 차트 데이터 (막대는 120%에서 캡, 툴팁에는 실제 달성률 그대로 표시)
   const chartData = results.map(r => ({
     label:        r.label,
-    rate:         Math.min(+(r.achievementRate * 100).toFixed(1), 100),
+    rate:         Math.min(+(r.achievementRate * 100).toFixed(1), 120),
     rateLabel:    PCT(r.achievementRate),
     achieved:     r.achieved,
     targetAmount: r.targetAmount,
@@ -807,18 +787,20 @@ export default function Dashboard({ results, totalScore, finalScore, stats, rows
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minHeight: 0 }}>
 
           {/* 유형별 목표 대비 달성률 */}
-          <div style={{ ...S.card, paddingTop: 12, paddingBottom: 6, flex: '1 1 0', minHeight: 230, display: 'flex', flexDirection: 'column' }}>
-            <div style={{ ...S.cardTitle, marginBottom: 6 }}>유형별 목표 대비 달성률</div>
-            <div style={{ display: 'flex', gap: 16, fontSize: 12, color: COLOR.subtext, marginBottom: 6, flexShrink: 0 }}>
-              <span><span style={{ ...S.dot, background: '#3182F6' }} />100% 이상</span>
-              <span><span style={{ ...S.dot, background: '#F5A623' }} />70~100%</span>
-              <span><span style={{ ...S.dot, background: COLOR.danger }} />70% 미만</span>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                <svg width="18" height="2" style={{ verticalAlign: 'middle' }}>
-                  <line x1="0" y1="1" x2="18" y2="1" stroke={COLOR.subtext} strokeWidth="1.5" strokeDasharray="4 2" />
-                </svg>
-                100% 목표선
-              </span>
+          <div style={{ ...S.card, paddingTop: 12, paddingBottom: 6, flex: '4 1 0', minHeight: 230, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, flexShrink: 0 }}>
+              <div style={{ ...S.cardTitle, marginBottom: 0 }}>유형별 목표 대비 달성률</div>
+              <div style={{ display: 'flex', gap: 16, fontSize: 12, color: COLOR.subtext }}>
+                <span><span style={{ ...S.dot, background: '#3182F6' }} />100% 이상</span>
+                <span><span style={{ ...S.dot, background: '#F5A623' }} />70~100%</span>
+                <span><span style={{ ...S.dot, background: COLOR.danger }} />70% 미만</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <svg width="18" height="2" style={{ verticalAlign: 'middle' }}>
+                    <line x1="0" y1="1" x2="18" y2="1" stroke={COLOR.subtext} strokeWidth="1.5" strokeDasharray="4 2" />
+                  </svg>
+                  100% 목표선
+                </span>
+              </div>
             </div>
             <div style={{ flex: 1, minHeight: 0 }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -835,10 +817,10 @@ export default function Dashboard({ results, totalScore, finalScore, stats, rows
                   />
                   <YAxis
                     type="number"
-                    domain={[0, 100]}
+                    domain={[0, 120]}
                     tickFormatter={v => `${v}%`}
                     tick={{ fontSize: 11, fill: COLOR.subtext }}
-                    tickCount={6}
+                    tickCount={7}
                     axisLine={false}
                     tickLine={false}
                     width={44}
@@ -856,7 +838,7 @@ export default function Dashboard({ results, totalScore, finalScore, stats, rows
           </div>
 
           {/* 목표대비 상세현황 */}
-          <div style={{ flex: '1 1 0', minHeight: 240, display: 'flex' }}>
+          <div style={{ flex: '6 1 0', minHeight: 240, display: 'flex' }}>
             <DetailTable results={results} />
           </div>
 
