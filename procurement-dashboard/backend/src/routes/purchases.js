@@ -46,6 +46,11 @@ const DB_TO_CALC = {
   '혁신제품여부':               '혁신제품여부',
 };
 
+// 금액 문자열에 콤마가 포함돼 있어도("1,000,000") 정상적으로 숫자로 변환
+function parseAmount(value) {
+  return Number(String(value ?? '').replace(/,/g, '').trim()) || 0;
+}
+
 // DB 행 → calcEngine 형식
 function toCalcRow(row, excludedNos) {
   const bizNo = String(row['결의번호'] ?? '').trim();
@@ -53,8 +58,8 @@ function toCalcRow(row, excludedNos) {
   for (const [dbCol, calcCol] of Object.entries(DB_TO_CALC)) {
     out[calcCol] = row[dbCol] ?? '';
   }
-  out['물품금액']     = Number(row['물품금액'])     || 0;
-  out['채주지급금액'] = Number(row['채주지급금액']) || 0;
+  out['물품금액']     = parseAmount(row['물품금액']);
+  out['채주지급금액'] = parseAmount(row['채주지급금액']);
   out['집행구분']     = row['집행구분'] ?? 'Y';
   out['제외여부']     = excludedNos.has(bizNo) ? 1 : (row['제외여부'] ?? 0);
   out.__source        = 'raw';
@@ -67,8 +72,8 @@ function sessionRawToCalcRow(row, excludedNos) {
   const bizNo = String(row['결의번호'] ?? '').trim();
   return {
     ...row,
-    '물품금액':     Number(row['물품금액'])     || 0,
-    '채주지급금액': Number(row['채주지급금액']) || 0,
+    '물품금액':     parseAmount(row['물품금액']),
+    '채주지급금액': parseAmount(row['채주지급금액']),
     '집행구분':     row['집행구분'] ?? 'Y',
     '제외여부':     excludedNos.has(bizNo) ? 1 : (row['제외여부'] ?? 0),
     __source:       'raw',
@@ -82,7 +87,7 @@ function manualToCalcRow(row) {
   return {
     '회계연도':                 row['회계연도']              ?? new Date().getFullYear(),
     '구매구분':                 row['구매구분']              ?? '물품',
-    '물품금액':                 Number(row['물품금액'])       || 0,
+    '물품금액':                 parseAmount(row['물품금액']),
     '채주지급금액':             0,
     '중소기업제품(연동)':       f('중소기업제품(연동)',       '중소기업제품'),
     '여성기업제품(연동)':       f('여성기업제품(연동)',       '여성기업제품'),

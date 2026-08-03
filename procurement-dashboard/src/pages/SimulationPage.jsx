@@ -2,12 +2,6 @@ import { useState } from 'react';
 import { calcEngine } from '../utils/calcEngine';
 import AmountText from '../components/AmountText';
 
-// Dashboard의 SIM_OVERRIDES와 동일
-const SIM_OVERRIDES = {
-  headcount: 14,
-  fixedTargets: { green_product: 2247000, jawal_veteran: 1420000 },
-};
-
 const CERT_OPTIONS = [
   { key: 'sme',              col: '중소기업제품(연동)',         label: '중소기업'   },
   { key: 'women',            col: '여성기업제품(연동)',         label: '여성기업'   },
@@ -105,7 +99,7 @@ const SC = {
 };
 
 // ── 메인 ─────────────────────────────────────────────────────────────────────
-export default function SimulationPage({ rows = [], results = [], finalScore = 0, maxScore = 4, remainingBudget = null }) {
+export default function SimulationPage({ rows = [], results = [], finalScore = 0, maxScore = 4, remainingBudget = null, calcOptions = null }) {
   const [amount, setAmount]             = useState('');
   const [purchaseType, setPurchaseType] = useState('물품');
   const [checked, setChecked]           = useState(new Set());
@@ -122,10 +116,10 @@ export default function SimulationPage({ rows = [], results = [], finalScore = 0
 
   const handleAnalyze = () => {
     const amt = parseAmt(amount);
-    if (!amt) return;
+    if (!amt || !calcOptions) return;
     const virtualRow    = createVirtualRow(amt, purchaseType, [...checked]);
     const effectiveRows = rows.filter(r => (r['제외여부'] ?? 0) === 0);
-    const sim           = calcEngine([...effectiveRows, virtualRow], SIM_OVERRIDES);
+    const sim           = calcEngine([...effectiveRows, virtualRow], calcOptions);
     setSimResult(sim);
   };
 
@@ -254,9 +248,9 @@ export default function SimulationPage({ rows = [], results = [], finalScore = 0
             </div>
 
             <button
-              style={{ ...P.analyzeBtn, opacity: parseAmt(amount) > 0 ? 1 : 0.45, cursor: parseAmt(amount) > 0 ? 'pointer' : 'not-allowed' }}
+              style={{ ...P.analyzeBtn, opacity: parseAmt(amount) > 0 && calcOptions ? 1 : 0.45, cursor: parseAmt(amount) > 0 && calcOptions ? 'pointer' : 'not-allowed' }}
               onClick={handleAnalyze}
-              disabled={parseAmt(amount) === 0}
+              disabled={parseAmt(amount) === 0 || !calcOptions}
             >
               분석하기
             </button>
@@ -303,8 +297,8 @@ export default function SimulationPage({ rows = [], results = [], finalScore = 0
                 </div>
 
                 {/* 지표 변동 테이블 */}
-                <div style={{ marginTop: 20 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: COLOR.subtext, marginBottom: 8 }}>
+                <div style={{ marginTop: 20, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: COLOR.subtext, marginBottom: 8, flexShrink: 0 }}>
                     지표별 변동 분석 {changes.length > 0 ? `(${changes.length}개 변화)` : ''}
                   </div>
                   {changes.length === 0 ? (
@@ -312,7 +306,7 @@ export default function SimulationPage({ rows = [], results = [], finalScore = 0
                       이 조건으로는 지표 변화가 없습니다.
                     </div>
                   ) : (
-                    <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 440 }}>
+                    <div style={{ flex: 1, minHeight: 0, overflowX: 'auto', overflowY: 'auto' }}>
                       <table style={P.table}>
                         <thead>
                           <tr style={{ background: COLOR.bg }}>
@@ -388,15 +382,15 @@ const P = {
   desc:         { fontSize: 13, color: COLOR.subtext },
   resetBtn:     { padding: '8px 18px', background: '#F2F4F6', color: COLOR.text, border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', alignSelf: 'flex-start' },
   body:         { display: 'flex', gap: 0, flex: 1, minHeight: 0 },
-  inputPane:    { flex: '0 0 360px', borderRight: `1px solid ${COLOR.border}`, padding: '24px 20px 24px 28px', display: 'flex', flexDirection: 'column', gap: 20 },
-  resultPane:   { flex: 1, minHeight: 0, padding: '24px 28px 24px 20px', display: 'flex', flexDirection: 'column', overflowY: 'auto' },
+  inputPane:    { flex: '0 0 360px', minHeight: 0, borderRight: `1px solid ${COLOR.border}`, padding: '24px 20px 24px 28px', display: 'flex', flexDirection: 'column', gap: 20, overflowY: 'auto' },
+  resultPane:   { flex: 1, minHeight: 0, padding: '24px 28px 24px 20px', display: 'flex', flexDirection: 'column' },
   fieldGroup:   { display: 'flex', flexDirection: 'column', gap: 8 },
   label:        { fontSize: 12, fontWeight: 700, color: COLOR.subtext, textTransform: 'uppercase', letterSpacing: '0.5px' },
   amountInput:  { flex: 1, padding: '11px 14px', border: `1.5px solid ${COLOR.border}`, borderRadius: 10, fontSize: 15, outline: 'none', background: COLOR.bg, color: COLOR.text, fontWeight: 600 },
   radioLabel:   { fontSize: 14, color: COLOR.text, display: 'flex', alignItems: 'center', cursor: 'pointer', fontWeight: 500 },
   certGrid:     { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px 6px' },
   certItem:     { fontSize: 13, color: COLOR.text, display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '6px 8px', borderRadius: 8, transition: 'background 0.15s', whiteSpace: 'nowrap' },
-  analyzeBtn:   { padding: '13px', background: COLOR.primary, color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, letterSpacing: '-0.2px' },
+  analyzeBtn:   { padding: '10px 13px', background: COLOR.primary, color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, letterSpacing: '-0.2px' },
   placeholder:  { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '60px 0' },
   scoreRow:     { display: 'flex', gap: 16, alignItems: 'stretch' },
   scoreBox:     { flex: 1, background: COLOR.bg, borderRadius: 14, padding: '18px 22px', border: `1.5px solid ${COLOR.border}` },

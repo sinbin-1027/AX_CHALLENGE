@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
-import FileUpload from './components/FileUpload';
 import Dashboard from './components/Dashboard';
 import DetailsPage from './pages/DetailsPage';
 import LoginPage from './pages/LoginPage';
@@ -17,7 +16,7 @@ import UploadHistoryPage from './pages/UploadHistoryPage';
 import GuideListPage from './pages/GuideListPage';
 import GuideDetailPage from './pages/GuideDetailPage';
 import { calcEngine } from './utils/calcEngine';
-import { buildExcludeTargets } from './data/groupIndicators';
+import { buildCalcOptions } from './utils/buildCalcOptions';
 
 const API_BASE = process.env.REACT_APP_API_URL || '';
 
@@ -31,9 +30,6 @@ const FETCH_OPTS = {
 
 // ── 메인 레이아웃 ─────────────────────────────────────────────────────────────
 function AppLayout({ onLogout }) {
-  const location = useLocation();
-  const isHome   = location.pathname === '/';
-
   const [departments, setDepartments]         = useState([]);
   const [loadingDepts, setLoadingDepts]       = useState(true);
   const [deptId, setDeptId]                   = useState(null);
@@ -41,7 +37,6 @@ function AppLayout({ onLogout }) {
   const [selectedYear, setSelectedYear]       = useState(null);
   const [apiRowsMap, setApiRowsMap]           = useState({});
   const [loadingRows, setLoadingRows]         = useState(false);
-  const [showUploadModal, setShowUploadModal] = useState(false);
   const [budgetSummary, setBudgetSummary]     = useState({ allocatedBudget: null, remainingBudget: null });
 
   // ── API 조회 헬퍼 ───────────────────────────────────────────────────────────
@@ -102,11 +97,6 @@ function AppLayout({ onLogout }) {
   const handleDeptChange = (e) => setDeptId(Number(e.target.value));
   const handleYearChange = (e) => setSelectedYear(Number(e.target.value));
 
-  const handleDataLoad = () => {
-    fetchRows(deptId, selectedYear);
-    setShowUploadModal(false);
-  };
-
   const handleLogout = async () => {
     try {
       await fetch(`${API_BASE}/api/auth/logout`, { ...FETCH_OPTS, method: 'POST' });
@@ -117,9 +107,9 @@ function AppLayout({ onLogout }) {
 
   // ── rows + calcEngine ────────────────────────────────────────────────────────
 
-  const { activeRows, result, excludedSetFromApi } = useMemo(() => {
+  const { activeRows, result, excludedSetFromApi, calcOptions } = useMemo(() => {
     const dept = departments.find(d => d.id === deptId);
-    if (!dept) return { activeRows: [], result: null, excludedSetFromApi: new Set() };
+    if (!dept) return { activeRows: [], result: null, excludedSetFromApi: new Set(), calcOptions: null };
 
     const activeRows = apiRowsMap[deptId] ?? [];
 
@@ -130,32 +120,17 @@ function AppLayout({ onLogout }) {
         .filter(Boolean),
     );
 
-    if (!activeRows.length) return { activeRows, result: null, excludedSetFromApi };
+    const calcOptions = buildCalcOptions(dept);
+
+    if (!activeRows.length) return { activeRows, result: null, excludedSetFromApi, calcOptions };
 
     const calcRows = activeRows.filter(r => r.__source !== 'raw' || r['제외여부'] !== 1);
 
-    const isTokwha = dept.group_name === '특화기능';
-    const overrides = {
-      headcount:    dept.headcount,
-      fixedTargets: {
-        green_product: dept.green_product_target,
-        jawal_veteran: dept.jawal_veteran_target,
-      },
-      scoreWeight:     isTokwha ? 3  : dept.score_weight,
-      totalPoints:     isTokwha ? 10 : Number(dept.total_points),
-      targetOverrides: isTokwha ? {
-        startup:           { points: 1.0 },
-        social_enterprise: { points: 1.0 },
-        onnuri_voucher:    { points: 8.0 },
-      } : {},
-      excludeTargets: buildExcludeTargets(dept.group_name),
-    };
-
     let result = null;
-    try { result = calcEngine(calcRows, overrides); }
+    try { result = calcEngine(calcRows, calcOptions); }
     catch (e) { console.error('calcEngine 오류:', e); }
 
-    return { activeRows, result, excludedSetFromApi };
+    return { activeRows, result, excludedSetFromApi, calcOptions };
   }, [departments, apiRowsMap, deptId]);
 
   const selectedDept = departments.find(d => d.id === deptId);
@@ -186,15 +161,10 @@ function AppLayout({ onLogout }) {
               </select>
             )}
             {selectedDept && (
-              <span style={S.groupBadge}>{selectedDept.group_name}</span>
+              <span style={S.groupBadge}>{selectedDept.group_name}직군</span>
             )}
           </div>
           <div style={S.headerRight}>
-            {isHome && (
-              <button onClick={() => setShowUploadModal(true)} style={S.updateBtn}>
-                데이터 업데이트
-              </button>
-            )}
             <button onClick={handleLogout} style={S.logoutBtn}>
               로그아웃
             </button>
@@ -232,7 +202,6 @@ function AppLayout({ onLogout }) {
                 excludedSet={excludedSetFromApi}
                 deptId={deptId}
                 onRefresh={() => fetchRows(deptId, selectedYear)}
-                onOpenUpload={() => setShowUploadModal(true)}
               />
             } />
 
@@ -241,8 +210,9 @@ function AppLayout({ onLogout }) {
                 rows={activeRows}
                 results={result?.results ?? []}
                 finalScore={result?.finalScore ?? 0}
-                maxScore={selectedDept?.score_weight}
+                maxScore={calcOptions?.scoreWeight ?? selectedDept?.score_weight}
                 remainingBudget={budgetSummary.remainingBudget}
+                calcOptions={calcOptions}
               />
             } />
             <Route path="/procurement/vendors" element={<VendorRecommend insufficientKeys={(result?.results ?? []).filter(r => !r.achieved).map(r => r.key)} />} />
@@ -268,20 +238,6 @@ function AppLayout({ onLogout }) {
           </Routes>
         </div>
       </div>
-
-      {showUploadModal && (
-        <div style={S.modalOverlay} onClick={() => setShowUploadModal(false)}>
-          <div style={S.modalCard} onClick={e => e.stopPropagation()}>
-            <div style={S.modalHeader}>
-              <span style={S.modalTitle}>엑셀 데이터 업로드</span>
-              <button onClick={() => setShowUploadModal(false)} style={S.modalClose}>✕</button>
-            </div>
-            <div style={S.modalBody}>
-              <FileUpload deptId={deptId} onDataLoad={handleDataLoad} />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -322,16 +278,9 @@ const S = {
   header:     { background: '#FFFFFF', borderBottom: '1px solid #F2F4F6', padding: '0 28px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 },
   headerLeft: { display: 'flex', alignItems: 'center', gap: 14 },
   deptSelect: { padding: '6px 12px', border: '1px solid #E5E8EB', borderRadius: 8, fontSize: 14, fontWeight: 600, color: '#191F28', cursor: 'pointer', background: '#fff', outline: 'none' },
-  groupBadge: { fontSize: 12, color: '#6B7684', background: '#F2F4F6', padding: '3px 10px', borderRadius: 12, fontWeight: 500 },
+  groupBadge: { fontSize: 14, color: '#6B7684', background: '#F2F4F6', padding: '3px 10px', borderRadius: 12, fontWeight: 600 },
   loadingText:{ fontSize: 13, color: '#8B95A1', fontStyle: 'italic' },
   headerRight:{ display: 'flex', alignItems: 'center', gap: 10 },
-  updateBtn:  { padding: '6px 16px', background: '#3182F6', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' },
   logoutBtn:  { padding: '6px 14px', background: '#fff', color: '#8B95A1', border: '1px solid #E5E8EB', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer' },
   content:    { flex: 1, minHeight: 0, padding: '24px 28px', overflowY: 'auto' },
-  modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 },
-  modalCard:    { background: '#fff', borderRadius: 16, width: 560, maxWidth: '92vw', boxShadow: '0 20px 60px rgba(0,0,0,0.18)', overflow: 'hidden' },
-  modalHeader:  { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid #F2F4F6' },
-  modalTitle:   { fontSize: 16, fontWeight: 700, color: '#191F28' },
-  modalClose:   { background: 'none', border: 'none', fontSize: 18, color: '#8B95A1', cursor: 'pointer', lineHeight: 1, padding: '2px 6px' },
-  modalBody:    { padding: '24px' },
 };
