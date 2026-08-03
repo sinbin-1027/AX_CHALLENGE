@@ -65,7 +65,11 @@ export default function Sidebar() {
           onMouseLeave={() => setLogoHover(false)}
         >
           <img src={kosmeLogo} alt="KOSME" style={collapsed ? S.logoImgCollapsed : S.logoImg} />
-          {!collapsed && <span style={S.logoSubText}>예산관리시스템</span>}
+          {!collapsed && (
+            <span style={S.logoSubText}>
+              공공구매 플러스<sup style={S.logoSubTextSup}>+</sup>
+            </span>
+          )}
         </div>
       </Link>
 
@@ -142,7 +146,7 @@ const S = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: 3,
+    gap: 0,
     padding: '20px 14px 18px',
     borderBottom: '1px solid rgba(255,255,255,0.12)',
     minHeight: 64,
@@ -154,11 +158,15 @@ const S = {
   logoImgCollapsed: { width: 32, height: 'auto', display: 'block', margin: '0 auto' },
   logoSubText: {
     color: 'rgba(255,255,255,0.85)',
-    fontSize: 21,
+    fontSize: 19,
     fontWeight: 700,
     letterSpacing: '0.2px',
     whiteSpace: 'nowrap',
     textAlign: 'center',
+  },
+  logoSubTextSup: {
+    fontSize: '0.6em',
+    verticalAlign: 'super',
   },
   nav: {
     flex: 1,
