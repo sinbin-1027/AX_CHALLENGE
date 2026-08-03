@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import AmountText from '../components/AmountText';
+import FileUpload from '../components/FileUpload';
 
 const API_BASE = process.env.REACT_APP_API_URL || '';
 
@@ -195,10 +196,12 @@ function ResizeHandle({ colKey, onResizeStart }) {
 // ── 테이블 행 ────────────────────────────────────────────────────────────────
 function TableRow({ row, index, excluded, isSelected, onRowClick, onToggleExclude }) {
   const isRaw      = row.__source === 'raw';
+  const isPending   = row.__source === 'pending-manual' || row.__source === 'pending-excel';
   const isN        = row['집행구분'] === 'N';
   const excludeKey = isRaw ? row.__결의번호 : row.__id;
 
   const rowBg = isSelected      ? '#EFF6FF'
+              : isPending       ? '#FFFBEB'
               : excluded        ? '#fff2f0'
               : isN             ? '#fff2f0'
               : index % 2 === 0 ? '#fff'
@@ -213,8 +216,9 @@ function TableRow({ row, index, excluded, isSelected, onRowClick, onToggleExclud
         <input
           type="checkbox"
           checked={excluded}
+          disabled={isPending}
           onChange={() => onToggleExclude(excludeKey)}
-          style={{ cursor: 'pointer', width: 15, height: 15 }}
+          style={{ cursor: isPending ? 'not-allowed' : 'pointer', width: 15, height: 15, opacity: isPending ? 0.4 : 1 }}
         />
       </td>
       <td style={{ ...P.td, textAlign: 'center', color: '#aaa', width: 36 }}>{index + 1}</td>
@@ -244,9 +248,11 @@ function TableRow({ row, index, excluded, isSelected, onRowClick, onToggleExclud
         </td>
       ))}
       <td style={{ ...P.td, textAlign: 'center', width: 80 }}>
-        {isRaw
-          ? <span style={P.badgeGray}>엑셀</span>
-          : <span style={P.badgeBlue}>수기</span>}
+        {isPending
+          ? <span style={P.badgeYellow}>미저장</span>
+          : isRaw
+            ? <span style={P.badgeGray}>엑셀</span>
+            : <span style={P.badgeBlue}>수기</span>}
       </td>
     </tr>
   );
@@ -267,13 +273,17 @@ function Toast({ message }) {
 }
 
 // ── 메인 페이지 ──────────────────────────────────────────────────────────────
-export default function DetailsPage({ rows, excludedSet: excludedSetProp = new Set(), deptId, onRefresh, onOpenUpload }) {
+export default function DetailsPage({ rows, excludedSet: excludedSetProp = new Set(), deptId, onRefresh }) {
   const [excludedSet, setExcludedSet] = useState(new Set());
   const [sortConfig, setSortConfig]   = useState({ key: null, direction: null });
   const [panelMode, setPanelMode]     = useState('idle');  // 'idle' | 'add' | 'edit'
   const [selectedRow, setSelectedRow] = useState(null);
   const [panelDraft, setPanelDraft]   = useState({});
   const [toast, setToast]             = useState(null);
+  // "저장"을 누르기 전까지 로컬에만 존재하는 대기(pending) 행들 — 행 추가 / 엑셀 업로드 공통
+  const [pendingManualRows, setPendingManualRows] = useState([]);
+  const [pendingExcelRows,  setPendingExcelRows]  = useState([]);
+  const [showUploadModal,  setShowUploadModal]    = useState(false);
   // 컬럼 너비는 %로 관리 (합계 100 유지 → 가로 스크롤 없이 항상 컨테이너 폭에 꽉 참)
   const [colWidths, setColWidths]     = useState(() => {
     const px = { ...EXTRA_COL_WIDTHS, ...Object.fromEntries(TABLE_COLS.map(c => [c.key, c.width])) };
@@ -365,27 +375,39 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
 
   // ── API 핸들러 ───────────────────────────────────────────────────────────────
 
-  const handlePanelAdd = async () => {
+  // 엑셀 파싱 결과: 서버에 바로 올리지 않고 대기 목록에만 추가 ("저장"을 눌러야 반영)
+  const handleExcelParsed = (parsedRows) => {
+    const tagged = parsedRows.map(r => ({ ...r, __source: 'pending-excel' }));
+    setPendingExcelRows(prev => [...prev, ...tagged]);
+    showToast(`${parsedRows.length.toLocaleString()}건 파싱됨 — "저장"을 눌러야 반영됩니다.`);
+  };
+
+  // 행 추가: 서버에 바로 POST하지 않고 대기 목록에만 추가 ("저장"을 눌러야 반영)
+  const handlePanelAdd = () => {
     if (!panelDraft['물품금액']) { alert('금액을 입력해주세요.'); return; }
-    try {
-      const res = await fetch(`${API_BASE}/api/purchases/manual`, {
-        ...FETCH_OPTS,
-        method: 'POST',
-        body:   JSON.stringify({ deptId, ...panelDraft, '물품금액': Number(panelDraft['물품금액']) || 0 }),
-      });
-      if (!res.ok) throw new Error('추가 실패');
-      handleClosePanel();
-      onRefresh?.();
-      showToast('행이 추가되었습니다');
-    } catch (e) {
-      alert('행 추가 중 오류가 발생했습니다.');
-      console.error(e);
-    }
+    const newRow = { ...panelDraft, '물품금액': Number(panelDraft['물품금액']) || 0 };
+    setPendingManualRows(prev => [...prev, newRow]);
+    handleClosePanel();
+    showToast('행이 대기 목록에 추가되었습니다. "저장"을 눌러야 반영됩니다.');
   };
 
   const handlePanelSave = async () => {
     if (!selectedRow) return;
     const editedFields = { ...panelDraft, '물품금액': Number(panelDraft['물품금액']) || 0 };
+
+    // 대기 중인 행 수정: 로컬 배열만 갱신 (서버 호출 없음)
+    if (selectedRow.__source === 'pending-manual') {
+      setPendingManualRows(prev => prev.map((r, i) => i === selectedRow.__pendingIndex ? { ...r, ...editedFields } : r));
+      handleClosePanel();
+      showToast('대기 중인 행이 수정되었습니다');
+      return;
+    }
+    if (selectedRow.__source === 'pending-excel') {
+      setPendingExcelRows(prev => prev.map((r, i) => i === selectedRow.__pendingIndex ? { ...r, ...editedFields } : r));
+      handleClosePanel();
+      showToast('대기 중인 행이 수정되었습니다');
+      return;
+    }
 
     try {
       if (selectedRow.__source === 'raw') {
@@ -421,6 +443,20 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
     if (!selectedRow) return;
     if (!window.confirm('이 행을 삭제할까요?')) return;
 
+    // 대기 중인 행 삭제: 로컬 배열에서만 제거 (서버 호출 없음)
+    if (selectedRow.__source === 'pending-manual') {
+      setPendingManualRows(prev => prev.filter((_, i) => i !== selectedRow.__pendingIndex));
+      handleClosePanel();
+      showToast('대기 중인 행이 삭제되었습니다');
+      return;
+    }
+    if (selectedRow.__source === 'pending-excel') {
+      setPendingExcelRows(prev => prev.filter((_, i) => i !== selectedRow.__pendingIndex));
+      handleClosePanel();
+      showToast('대기 중인 행이 삭제되었습니다');
+      return;
+    }
+
     try {
       if (selectedRow.__source === 'raw') {
         const bizNo = encodeURIComponent(selectedRow.__결의번호 ?? '');
@@ -445,14 +481,57 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
     }
   };
 
+  const handleReset = async () => {
+    if (!window.confirm('정말 초기화하시겠어요? 지금까지 업로드/입력한 내용이 모두 사라집니다.')) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/api/purchases/reset?deptId=${deptId}`, {
+        ...FETCH_OPTS,
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('초기화 실패');
+      setPendingManualRows([]);
+      setPendingExcelRows([]);
+      onRefresh?.();
+      showToast('초기화되었습니다');
+    } catch (e) {
+      alert('초기화 중 오류가 발생했습니다.');
+      console.error(e);
+    }
+  };
+
+  // 대기 중인 행(수기 추가 + 엑셀 업로드) + 제외 설정을 한 번에 서버로 반영
   const handleSave = async () => {
     try {
+      for (const draft of pendingManualRows) {
+        const { __source, __pendingIndex, __pendingKey, ...fields } = draft;
+        const res = await fetch(`${API_BASE}/api/purchases/manual`, {
+          ...FETCH_OPTS,
+          method: 'POST',
+          body:   JSON.stringify({ deptId, ...fields }),
+        });
+        if (!res.ok) throw new Error('행 추가 반영 실패');
+      }
+
+      if (pendingExcelRows.length > 0) {
+        const cleanRows = pendingExcelRows.map(({ __source, __pendingIndex, __pendingKey, ...rest }) => rest);
+        const res = await fetch(`${API_BASE}/api/purchases/upload`, {
+          ...FETCH_OPTS,
+          method: 'POST',
+          body:   JSON.stringify({ deptId, rows: cleanRows }),
+        });
+        if (!res.ok) throw new Error('엑셀 업로드 반영 실패');
+      }
+
       const res = await fetch(`${API_BASE}/api/purchases/exclude`, {
         ...FETCH_OPTS,
         method: 'PUT',
         body:   JSON.stringify({ deptId, excludeIds: [...excludedSet] }),
       });
       if (!res.ok) throw new Error('저장 실패');
+
+      setPendingManualRows([]);
+      setPendingExcelRows([]);
       onRefresh?.();
       showToast('저장되었습니다');
     } catch (e) {
@@ -477,15 +556,31 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
     .filter(r => excludedSet.has(r.__source === 'raw' ? r.__결의번호 : r.__id))
     .reduce((s, r) => s + (Number(r['물품금액']) || 0), 0);
 
+  const pendingCount = pendingManualRows.length + pendingExcelRows.length;
+  const pendingTotal = [...pendingManualRows, ...pendingExcelRows]
+    .reduce((s, r) => s + (Number(r['물품금액']) || 0), 0);
+
   const isDirty = useMemo(() => {
+    if (pendingCount > 0) return true;
     if (excludedSet.size !== excludedSetProp.size) return true;
     for (const id of excludedSet) if (!excludedSetProp.has(id)) return true;
     return false;
-  }, [excludedSet, excludedSetProp]);
+  }, [excludedSet, excludedSetProp, pendingCount]);
+
+  // 아직 저장 전인 대기 행들을 화면 목록에 같이 보여준다 (서버 rows + 로컬 pending)
+  const displayRows = useMemo(() => {
+    const pendingManualDisplay = pendingManualRows.map((r, i) => ({
+      ...r, __source: 'pending-manual', __pendingIndex: i, __pendingKey: `pm-${i}`,
+    }));
+    const pendingExcelDisplay = pendingExcelRows.map((r, i) => ({
+      ...r, __source: 'pending-excel', __pendingIndex: i, __pendingKey: `pe-${i}`,
+    }));
+    return [...rows, ...pendingManualDisplay, ...pendingExcelDisplay];
+  }, [rows, pendingManualRows, pendingExcelRows]);
 
   const sortedRows = useMemo(() => {
-    if (!sortConfig.key) return rows;
-    return [...rows].sort((a, b) => {
+    if (!sortConfig.key) return displayRows;
+    return [...displayRows].sort((a, b) => {
       const aVal = a[sortConfig.key] ?? '';
       const bVal = b[sortConfig.key] ?? '';
       if (sortConfig.key === '물품금액') {
@@ -497,7 +592,7 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
         ? String(aVal).localeCompare(String(bVal), 'ko')
         : String(bVal).localeCompare(String(aVal), 'ko');
     });
-  }, [rows, sortConfig]);
+  }, [displayRows, sortConfig]);
 
   const tableMaxH = panelMode === 'idle' ? 'calc(100vh - 310px)' : 'calc(100vh - 530px)';
 
@@ -515,10 +610,14 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
               {excludedSet.size > 0 && (
                 <span style={P.excludeBadge}>모수 제외 {excludedSet.size}건 (<AmountText value={excludedTotal} />)</span>
               )}
+              {pendingCount > 0 && (
+                <span style={P.pendingBadge}>대기 중 {pendingCount.toLocaleString()}건 (<AmountText value={pendingTotal} scale={1} />)</span>
+              )}
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button style={P.addBtn}     onClick={() => onOpenUpload?.()}>데이터 업데이트</button>
+            <button style={P.resetBtn}   onClick={handleReset}>초기화</button>
+            <button style={P.addBtn}     onClick={() => setShowUploadModal(true)}>데이터 업데이트</button>
             <button style={P.addBtn}     onClick={handleOpenAdd}>+ 행 추가</button>
             <button style={P.refreshBtn} onClick={() => { onRefresh?.(); showToast('조회되었습니다'); }}>조회</button>
             <button style={P.saveBtn}    onClick={handleSave}>{isDirty ? '저장 *' : '저장'}</button>
@@ -539,9 +638,24 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
         <div style={P.legend}>
           <span><span style={{ ...P.dot, background: '#EFF6FF', border: '1px solid #93c5fd' }} />선택된 행</span>
           <span><span style={{ ...P.dot, background: '#fff2f0', border: '1px solid #ffa39e' }} />모수 제외된 행</span>
-          <span style={{ color: '#64748b', fontSize: 12 }}>행 클릭 → 패널에서 수정 · 체크박스로 제외 설정 후 [저장]</span>
+          <span><span style={{ ...P.dot, background: '#FFFBEB', border: '1px solid #fbbf24' }} />대기 중(미저장) 행</span>
         </div>
       </div>
+
+      {showUploadModal && (
+        <div style={P.modalOverlay} onClick={() => setShowUploadModal(false)}>
+          <div style={P.modalCard} onClick={e => e.stopPropagation()}>
+            <div style={P.modalHeader}>
+              <span style={P.modalTitle}>엑셀 데이터 업로드</span>
+              <button onClick={() => setShowUploadModal(false)} style={P.modalClose}>✕</button>
+            </div>
+            <div style={P.modalBody}>
+              <FileUpload deptId={deptId} onParsed={handleExcelParsed} />
+              <div style={P.modalHint}>확인 후 "저장"을 눌러야 실제로 반영됩니다.</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 테이블 */}
       <div style={P.tableCard}>
@@ -583,7 +697,7 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
               </tr>
             </thead>
             <tbody>
-              {rows.length === 0 && (
+              {displayRows.length === 0 && (
                 <tr>
                   <td colSpan={TABLE_COLS.length + 3} style={{ ...P.td, textAlign: 'center', color: '#aaa', padding: '40px 0' }}>
                     데이터가 없습니다.
@@ -592,14 +706,15 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
               )}
               {sortedRows.map((row, i) => (
                 <TableRow
-                  key={row.__결의번호 ?? `manual-${row.__id ?? i}`}
+                  key={row.__결의번호 ?? row.__pendingKey ?? `manual-${row.__id ?? i}`}
                   row={row}
                   index={i}
                   excluded={excludedSet.has(row.__source === 'raw' ? row.__결의번호 : row.__id)}
                   isSelected={
                     selectedRow != null && (
-                      (row.__id != null        && row.__id        === selectedRow.__id) ||
-                      (row.__결의번호 != null   && row.__결의번호  === selectedRow.__결의번호)
+                      (row.__id != null          && row.__id          === selectedRow.__id) ||
+                      (row.__결의번호 != null     && row.__결의번호    === selectedRow.__결의번호) ||
+                      (row.__pendingKey != null   && row.__pendingKey  === selectedRow.__pendingKey)
                     )
                   }
                   onRowClick={handleRowClick}
@@ -628,6 +743,7 @@ const P = {
   pageTitle:    { fontSize: 20, fontWeight: 800, color: '#191F28', letterSpacing: '-0.5px' },
   pageSub:      { fontSize: 13, color: '#8B95A1', marginTop: 4 },
   excludeBadge: { marginLeft: 10, background: '#FFF0F1', color: '#F04452', padding: '2px 8px', borderRadius: 99, fontSize: 12, fontWeight: 600 },
+  resetBtn:     { padding: '9px 14px', background: 'transparent', color: '#8B95A1', border: '1px solid #E5E8EB', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' },
   addBtn:       { padding: '9px 18px', background: '#3182F6', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer' },
   saveBtn:      { padding: '9px 18px', background: '#00B493', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer' },
   refreshBtn:   { padding: '9px 18px', background: '#FFFFFF', color: '#3182F6', border: '1px solid #3182F6', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer' },
@@ -640,6 +756,16 @@ const P = {
   resizeHandle: { position: 'absolute', top: 0, right: -3, width: 6, height: '100%', cursor: 'col-resize', zIndex: 3, touchAction: 'none' },
   badgeGray:    { display: 'inline-block', padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: '#F2F4F6', color: '#8B95A1' },
   badgeBlue:    { display: 'inline-block', padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: '#EBF3FE', color: '#3182F6' },
+  badgeYellow:  { display: 'inline-block', padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: '#FEF3C7', color: '#B45309' },
+  pendingBadge: { marginLeft: 10, background: '#FEF3C7', color: '#B45309', padding: '2px 8px', borderRadius: 99, fontSize: 12, fontWeight: 600 },
+
+  modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 },
+  modalCard:    { background: '#fff', borderRadius: 16, width: 560, maxWidth: '92vw', boxShadow: '0 20px 60px rgba(0,0,0,0.18)', overflow: 'hidden' },
+  modalHeader:  { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid #F2F4F6' },
+  modalTitle:   { fontSize: 16, fontWeight: 700, color: '#191F28' },
+  modalClose:   { background: 'none', border: 'none', fontSize: 18, color: '#8B95A1', cursor: 'pointer', lineHeight: 1, padding: '2px 6px' },
+  modalBody:    { padding: '24px' },
+  modalHint:    { marginTop: 14, fontSize: 12, color: '#8B95A1', lineHeight: 1.5 },
 };
 
 const F = {

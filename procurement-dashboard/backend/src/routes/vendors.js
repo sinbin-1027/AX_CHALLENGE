@@ -49,6 +49,18 @@ function calcStatus(cancelDate, expireDate) {
   return expireDate > today ? '유효' : '확인필요';    // 문자열 비교 (ISO날짜는 사전순 = 시간순)
 }
 
+// calcStatus()와 동일한 로직을 SQL(WHERE 필터 / COUNT FILTER / 정렬)에서 쓰기 위한 조회 시점 계산식.
+// DB에 저장된 '상태' 컬럼(업로드 시점 값, 참고용)은 안 믿고 매번 이걸로 다시 계산한다.
+// calcStatus()를 고치면 이 식도 같이 맞춰야 한다.
+function liveStatusSql(prefix = '') {
+  return `CASE
+    WHEN ${prefix}취소일자 IS NOT NULL THEN '취소'
+    WHEN ${prefix}만료일자 IS NULL THEN '확인필요'
+    WHEN ${prefix}만료일자 > CURRENT_DATE THEN '유효'
+    ELSE '확인필요'
+  END`;
+}
+
 // ── POST /api/vendors/upload ──────────────────────────────────────────────────
 
 router.post('/upload', sessionAuth, async (req, res, next) => {
@@ -171,12 +183,12 @@ router.get('/search', sessionAuth, async (req, res, next) => {
           array_agg(
             json_build_object(
               '인증종류', v.인증종류,
-              '상태',     v.상태,
+              '상태',     (${liveStatusSql('v.')}),
               '만료일자', v.만료일자::text
             ) ORDER BY v.인증종류
           ) AS 인증목록,
           ${matchScoreSQL},
-          MIN(CASE v.상태
+          MIN(CASE (${liveStatusSql('v.')})
             WHEN '유효'     THEN 1
             WHEN '확인필요' THEN 2
             WHEN '취소'     THEN 3
@@ -247,7 +259,7 @@ router.get('/list', sessionAuth, async (req, res, next) => {
 
     if (status && ['유효', '확인필요', '취소'].includes(status)) {
       sharedParams.push(status);
-      wheres.push(`v.사업자번호 IN (SELECT DISTINCT 사업자번호 FROM vendors WHERE 상태 = $${sharedParams.length})`);
+      wheres.push(`v.사업자번호 IN (SELECT DISTINCT 사업자번호 FROM vendors WHERE (${liveStatusSql()}) = $${sharedParams.length})`);
     }
 
     const whereClause = wheres.length ? 'WHERE ' + wheres.join(' AND ') : '';
@@ -269,7 +281,7 @@ router.get('/list', sessionAuth, async (req, res, next) => {
           array_agg(
             json_build_object(
               '인증종류', v.인증종류,
-              '상태',     v.상태,
+              '상태',     (${liveStatusSql('v.')}),
               '만료일자', v.만료일자::text
             ) ORDER BY v.인증종류
           ) AS 인증목록,
@@ -310,11 +322,11 @@ router.get('/stats', sessionAuth, async (req, res, next) => {
       pool.query(`
         SELECT
           인증종류,
-          COUNT(*)                                       AS total,
-          COUNT(*) FILTER (WHERE 상태 = '유효')          AS 유효,
-          COUNT(*) FILTER (WHERE 상태 = '확인필요')      AS 확인필요,
-          COUNT(*) FILTER (WHERE 상태 = '취소')          AS 취소,
-          MAX(데이터기준일::text)                        AS 데이터기준일
+          COUNT(*)                                             AS total,
+          COUNT(*) FILTER (WHERE (${liveStatusSql()}) = '유효')     AS 유효,
+          COUNT(*) FILTER (WHERE (${liveStatusSql()}) = '확인필요') AS 확인필요,
+          COUNT(*) FILTER (WHERE (${liveStatusSql()}) = '취소')     AS 취소,
+          MAX(데이터기준일::text)                              AS 데이터기준일
         FROM vendors
         GROUP BY 인증종류
         ORDER BY 인증종류
