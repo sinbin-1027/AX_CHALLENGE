@@ -585,7 +585,7 @@ function DetailTableBody({ rows, totals }) {
           <td style={{ ...DT.td, textAlign: 'right', color: totals.shortfall > 0 ? COLOR.danger : COLOR.subtext, fontSize: 16 }}>
             {totals.shortfall > 0 ? fmtKRW(totals.shortfall) : '-'}
           </td>
-          <td style={{ ...DT.td, textAlign: 'right', color: COLOR.primary }}>{totals.points.toFixed(1)}점</td>
+          <td style={{ ...DT.td, textAlign: 'right', color: COLOR.primary }}>-</td>
         </tr>
       </tfoot>
     </table>
@@ -625,7 +625,6 @@ function DetailTable({ results }) {
     target:   validAll.reduce((s, r) => s + r.targetAmount, 0),
     actual:   validAll.reduce((s, r) => s + r.actual, 0),
     shortfall:validAll.reduce((s, r) => s + Math.max(0, r.targetAmount - r.actual), 0),
-    points:   validAll.reduce((s, r) => s + (r.points ?? 0), 0),
     get rate() { return this.target > 0 ? this.actual / this.target : 0; },
   };
 
@@ -686,8 +685,8 @@ function ChartTooltip({ active, payload, label }) {
     <div style={{ background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: '10px 14px', fontSize: 13, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
       <div style={{ fontWeight: 600, marginBottom: 6, color: COLOR.text }}>{label}</div>
       <div style={{ color: COLOR.subtext }}>달성률: <b style={{ color: barRateColor(d.rate) }}>{d.rateLabel}</b></div>
-      <div style={{ color: COLOR.subtext }}>목표액: <AmountText value={d.targetAmount} /></div>
-      <div style={{ color: COLOR.subtext }}>실적액: <AmountText value={d.actual} /></div>
+      <div style={{ color: COLOR.subtext }}>목표액: <AmountText value={d.targetAmount} scale={1} /></div>
+      <div style={{ color: COLOR.subtext }}>실적액: <AmountText value={d.actual} scale={1} /></div>
     </div>
   );
 }

@@ -127,11 +127,12 @@ router.get('/search', sessionAuth, async (req, res, next) => {
   try {
     const insufficientKeys = (req.query.insufficientKeys ?? '')
       .split(',').map(k => k.trim()).filter(Boolean);
-    const search   = (req.query.search   ?? '').trim();
-    const certType = (req.query.certType ?? '').trim();
-    const page     = Math.max(1, parseInt(req.query.page  ?? '1'));
-    const limit    = Math.min(100, Math.max(1, parseInt(req.query.limit ?? '20')));
-    const offset   = (page - 1) * limit;
+    const search    = (req.query.search    ?? '').trim();
+    const certType  = (req.query.certType  ?? '').trim();
+    const onlyValid = req.query.onlyValid === 'true';
+    const page      = Math.max(1, parseInt(req.query.page  ?? '1'));
+    const limit     = Math.min(100, Math.max(1, parseInt(req.query.limit ?? '20')));
+    const offset    = (page - 1) * limit;
 
     // 지표 key → 인증종류 변환 (중복 제거)
     const certKinds = [...new Set(insufficientKeys.map(k => KEY_TO_KIND[k]).filter(Boolean))];
@@ -158,6 +159,11 @@ router.get('/search', sessionAuth, async (req, res, next) => {
       sharedParams.push(`%${search}%`);
       const p = `$${sharedParams.length}`;
       wheres.push(`(v.업체명 ILIKE ${p} OR v.사업자번호 ILIKE ${p})`);
+    }
+
+    // 유효 인증만 보기: 전체 검색결과 기준으로(페이지 안이 아니라) 필터링 — /list의 상태 필터와 동일한 방식
+    if (onlyValid) {
+      wheres.push(`v.사업자번호 IN (SELECT DISTINCT 사업자번호 FROM vendors WHERE (${liveStatusSql()}) = '유효')`);
     }
 
     const whereClause   = wheres.length ? 'WHERE ' + wheres.join(' AND ') : '';

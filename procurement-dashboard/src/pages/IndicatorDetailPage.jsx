@@ -156,9 +156,6 @@ export default function IndicatorDetailPage({ rows = [], results = [], groupName
           <div style={{ ...S.kpiValue, color: result?.achieved ? '#00B493' : '#F04452' }}>
             {noTarget ? '-' : isAutoFull ? '100.0%' : PCT(rate)}
           </div>
-          <div style={{ fontSize: 13, marginTop: 10, fontWeight: 700, color: result?.achieved ? '#00B493' : '#F04452' }}>
-            {result?.achieved ? '달성' : '미달성'}
-          </div>
         </div>
         <div style={S.kpiCard}>
           <div style={S.kpiTitle}>부족액</div>
@@ -186,6 +183,7 @@ export default function IndicatorDetailPage({ rows = [], results = [], groupName
           <table style={S.table}>
             <thead>
               <tr>
+                <th style={{ ...S.th, width: 60, textAlign: 'center' }}>모수 제외</th>
                 <th style={{ ...S.th, width: 44, textAlign: 'center' }}>순번</th>
                 <th style={S.th}>결의번호</th>
                 <th style={S.th}>구매유형</th>
@@ -198,16 +196,28 @@ export default function IndicatorDetailPage({ rows = [], results = [], groupName
             <tbody>
               {filteredRows.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{ ...S.td, textAlign: 'center', color: '#8B95A1', padding: '48px 0' }}>
+                  <td colSpan={8} style={{ ...S.td, textAlign: 'center', color: '#8B95A1', padding: '48px 0' }}>
                     해당 지표에 해당하는 데이터가 없습니다.
                   </td>
                 </tr>
               )}
-              {filteredRows.map((row, i) => (
+              {filteredRows.map((row, i) => {
+                const isExcluded = (row['제외여부'] ?? 0) === 1;
+                return (
                 <tr
                   key={row.__결의번호 ?? `r-${i}`}
-                  style={{ background: i % 2 === 0 ? '#fff' : '#F9FAFB' }}
+                  style={{ background: isExcluded ? '#fff2f0' : i % 2 === 0 ? '#fff' : '#F9FAFB', opacity: isExcluded ? 0.7 : 1 }}
                 >
+                  <td style={{ ...S.td, textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={isExcluded}
+                      disabled
+                      readOnly
+                      title="지표별 실적 상세에서는 조회만 가능 — 제외 설정은 구매 실적 등록 메뉴에서"
+                      style={{ cursor: 'not-allowed', width: 15, height: 15, opacity: isExcluded ? 0.9 : 0.4 }}
+                    />
+                  </td>
                   <td style={{ ...S.td, textAlign: 'center', color: '#8B95A1' }}>{i + 1}</td>
                   <td style={{ ...S.td, fontVariantNumeric: 'tabular-nums' }}>
                     {row.__결의번호 || row['결의번호'] || '-'}
@@ -229,7 +239,8 @@ export default function IndicatorDetailPage({ rows = [], results = [], groupName
                     {fmtKRW(row['물품금액'])}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

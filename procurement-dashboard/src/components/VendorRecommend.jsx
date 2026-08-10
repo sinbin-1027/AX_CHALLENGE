@@ -1,4 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+
+const SEARCH_DEBOUNCE_MS = 300;
 
 const API_BASE = process.env.REACT_APP_API_URL ?? '';
 const LIMIT = 20;
@@ -41,40 +43,62 @@ function CertBadge({ cert }) {
 
 export default function VendorRecommend({ insufficientKeys = [] }) {
   const [search, setSearch]     = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [onlyValid, setOnlyValid] = useState(false);
   const [page, setPage]         = useState(1);
   const [data, setData]         = useState({ vendors: [], total: 0 });
   const [loading, setLoading]   = useState(false);
+  const requestIdRef = useRef(0);
 
-  const fetchVendors = useCallback(async (keys, s, pg) => {
+  // 입력할 때마다 즉시 요청을 보내면 이전 검색어의 응답이 늦게 도착해서
+  // 최신 검색어의 결과를 덮어쓰는 경쟁 상태(race condition)가 생긴다 —
+  // 디바운스로 요청 횟수를 줄이고, requestIdRef로 응답 순서를 보정한다.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPage(1);
+      setDebouncedSearch(search);
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const flushSearch = useCallback(() => {
+    setPage(1);
+    setDebouncedSearch(search);
+  }, [search]);
+
+  const fetchVendors = useCallback(async (keys, s, pg, valid) => {
     if (keys.length === 0 && !s) {
+      requestIdRef.current += 1;
       setData({ vendors: [], total: 0 });
       return;
     }
+    const myId = ++requestIdRef.current;
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: pg, limit: LIMIT });
       if (keys.length > 0) params.set('insufficientKeys', keys.join(','));
       if (s) params.set('search', s);
+      if (valid) params.set('onlyValid', 'true');
       const res  = await fetch(`${API_BASE}/api/vendors/search?${params}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
       const json = await res.json();
+      if (myId !== requestIdRef.current) return; // 더 최신 요청이 이미 진행 중 — 이 응답은 버림
       setData({ vendors: json.vendors ?? [], total: json.total ?? 0 });
     } catch (e) {
       console.error('추천 업체 조회 실패:', e);
     } finally {
-      setLoading(false);
+      if (myId === requestIdRef.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchVendors(insufficientKeys, search, page);
-  }, [insufficientKeys, search, page, fetchVendors]);
+    fetchVendors(insufficientKeys, debouncedSearch, page, onlyValid);
+  }, [insufficientKeys, debouncedSearch, page, onlyValid, fetchVendors]);
 
   const insufficientLabels = [...new Set(insufficientKeys.map(k => KEY_TO_LABEL[k]).filter(Boolean))];
 
-  const displayedVendors = onlyValid
-    ? data.vendors.filter(v => v.인증목록.some(c => c.상태 === '유효'))
-    : data.vendors;
+  // 필터링(유효 인증만 보기)이 이제 서버에서 전체 검색결과 기준으로 처리되므로,
+  // data.vendors를 그대로 쓰면 됨 (클라이언트 재필터링 없음).
+  const displayedVendors = data.vendors;
 
   const totalPages = Math.ceil(data.total / LIMIT);
 
@@ -98,10 +122,10 @@ export default function VendorRecommend({ insufficientKeys = [] }) {
         </div>
 
         <div style={S.searchRow}>
-          <form onSubmit={e => { e.preventDefault(); setPage(1); }} style={{ display: 'flex', flex: 1, gap: 10 }}>
+          <form onSubmit={e => { e.preventDefault(); flushSearch(); }} style={{ display: 'flex', flex: 1, gap: 10 }}>
             <input
               value={search}
-              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              onChange={e => setSearch(e.target.value)}
               placeholder="업체명 또는 사업자번호 검색"
               style={S.searchInput}
             />
@@ -109,7 +133,7 @@ export default function VendorRecommend({ insufficientKeys = [] }) {
           </form>
           <button
             style={{ ...S.toggleBtn, ...(onlyValid ? S.toggleBtnActive : {}) }}
-            onClick={() => setOnlyValid(v => !v)}
+            onClick={() => { setOnlyValid(v => !v); setPage(1); }}
           >
             {onlyValid ? '✓ 유효 인증만 보기' : '유효 인증만 보기'}
           </button>
@@ -120,7 +144,7 @@ export default function VendorRecommend({ insufficientKeys = [] }) {
       <div style={S.card}>
         <div style={S.cardHeader}>
           <span style={S.cardTitle}>
-            추천 결과
+            검색 결과
             <span style={S.totalBadge}>{data.total.toLocaleString()}개</span>
             <span style={S.statusLegend}>
               <span><span style={{ ...S.legendDot, background: STATUS_STYLE['유효'].text }} />유효</span>
@@ -166,7 +190,7 @@ export default function VendorRecommend({ insufficientKeys = [] }) {
           ))}
         </div>
 
-        {!onlyValid && totalPages > 1 && (
+        {totalPages > 1 && (
           <div style={S.pagination}>
             <button
               style={{ ...S.pageBtn, ...(page === 1 ? S.pageBtnDisabled : {}) }}

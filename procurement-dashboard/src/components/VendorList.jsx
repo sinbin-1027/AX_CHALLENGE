@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 const API_BASE = process.env.REACT_APP_API_URL ?? '';
 const LIMIT = 20;
+const SEARCH_DEBOUNCE_MS = 300;
 
 const CERT_FILTERS = [
   { value: '',                  label: '전체' },
@@ -100,14 +101,33 @@ function DetailModal({ vendor, onClose }) {
 
 export default function VendorList() {
   const [search, setSearch]             = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [certFilters, setCertFilters]   = useState([]); // 다중 선택 (AND 조건)
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage]                 = useState(1);
   const [data, setData]                 = useState({ vendors: [], total: 0 });
   const [loading, setLoading]           = useState(false);
   const [selected, setSelected]         = useState(null);
+  const requestIdRef = useRef(0);
+
+  // 입력할 때마다 즉시 요청을 보내면 이전 검색어의 응답이 늦게 도착해서
+  // 최신 검색어의 결과를 덮어쓰는 경쟁 상태(race condition)가 생긴다 —
+  // 디바운스로 요청 횟수를 줄이고, requestIdRef로 응답 순서를 보정한다.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPage(1);
+      setDebouncedSearch(search);
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const flushSearch = useCallback(() => {
+    setPage(1);
+    setDebouncedSearch(search);
+  }, [search]);
 
   const fetchVendors = useCallback(async (s, certs, status, pg) => {
+    const myId = ++requestIdRef.current;
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: pg, limit: LIMIT });
@@ -116,17 +136,18 @@ export default function VendorList() {
       if (status)        params.set('status', status);
       const res  = await fetch(`${API_BASE}/api/vendors/list?${params}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
       const json = await res.json();
+      if (myId !== requestIdRef.current) return; // 더 최신 요청이 이미 진행 중 — 이 응답은 버림
       setData({ vendors: json.vendors ?? [], total: json.total ?? 0 });
     } catch (e) {
       console.error('업체 목록 조회 실패:', e);
     } finally {
-      setLoading(false);
+      if (myId === requestIdRef.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchVendors(search, certFilters, statusFilter, page);
-  }, [search, certFilters, statusFilter, page, fetchVendors]);
+    fetchVendors(debouncedSearch, certFilters, statusFilter, page);
+  }, [debouncedSearch, certFilters, statusFilter, page, fetchVendors]);
 
   // "전체"는 선택 초기화, 그 외 지표는 이미 선택돼 있으면 해제, 없으면 추가
   const toggleCertFilter = (value) => {
@@ -166,10 +187,10 @@ export default function VendorList() {
       {selected && <DetailModal vendor={selected} onClose={() => setSelected(null)} />}
 
       <div style={S.card}>
-        <form onSubmit={e => { e.preventDefault(); setPage(1); }} style={S.searchRow}>
+        <form onSubmit={e => { e.preventDefault(); flushSearch(); }} style={S.searchRow}>
           <input
             value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1); }}
+            onChange={e => setSearch(e.target.value)}
             placeholder="업체명 또는 사업자번호 검색"
             style={S.searchInput}
           />
