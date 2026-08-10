@@ -242,7 +242,7 @@ function TableRow({ row, index, excluded, isSelected, onRowClick, onToggleExclud
               color:      isN ? '#ff4d4f' : '#52c41a',
               border:     `1px solid ${isN ? '#ffa39e' : '#b7eb8f'}`,
             }}>{row[c.key] || 'Y'}</span>
-          ) : c.key === '물품금액' ? (Number(row[c.key]) ? <AmountText value={row[c.key]} /> : '-')
+          ) : c.key === '물품금액' ? (Number(row[c.key]) ? <AmountText value={row[c.key]} scale={1} /> : '-')
             : c.fmt ? c.fmt(row[c.key])
             : (row[c.key] || '-')}
         </td>
@@ -294,6 +294,18 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
   useEffect(() => {
     setExcludedSet(new Set(excludedSetProp));
   }, [excludedSetProp]);
+
+  // 부서를 바꾸면 이전 부서의 대기(pending) 행·열린 패널·업로드 모달을 전부 정리한다.
+  // (저장하지 않은 채 다른 부서로 넘어가면 그 데이터는 폐기되는 게 맞음 — 안 그러면
+  //  나중에 "저장"을 눌렀을 때 지금 선택된(다른) 부서로 잘못 반영될 위험이 있음)
+  useEffect(() => {
+    setPendingManualRows([]);
+    setPendingExcelRows([]);
+    setShowUploadModal(false);
+    setPanelMode('idle');
+    setSelectedRow(null);
+    setPanelDraft({});
+  }, [deptId]);
 
   // ── 컬럼 너비 드래그 리사이즈 (드래그한 컬럼과 바로 오른쪽 이웃 컬럼끼리 폭을 주고받음) ──
   const tableWrapRef = useRef(null);
@@ -551,13 +563,15 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
 
   // ── 집계 / 정렬 ──────────────────────────────────────────────────────────────
 
-  const total = rows.reduce((s, r) => s + (Number(r['물품금액']) || 0), 0);
-  const excludedTotal = rows
-    .filter(r => excludedSet.has(r.__source === 'raw' ? r.__결의번호 : r.__id))
-    .reduce((s, r) => s + (Number(r['물품금액']) || 0), 0);
-
+  // 저장 전 대기 행도 포함해서 "지금 화면에 보이는 걸 다 더하면 얼마인지"를 그대로 보여준다.
+  // (저장 여부와 무관하게 항상 화면 표시 기준 합계 — 대기 중인 금액은 별도 배지로 부가 표시)
   const pendingCount = pendingManualRows.length + pendingExcelRows.length;
   const pendingTotal = [...pendingManualRows, ...pendingExcelRows]
+    .reduce((s, r) => s + (Number(r['물품금액']) || 0), 0);
+
+  const total = rows.reduce((s, r) => s + (Number(r['물품금액']) || 0), 0) + pendingTotal;
+  const excludedTotal = rows
+    .filter(r => excludedSet.has(r.__source === 'raw' ? r.__결의번호 : r.__id))
     .reduce((s, r) => s + (Number(r['물품금액']) || 0), 0);
 
   const isDirty = useMemo(() => {
@@ -606,7 +620,7 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
           <div>
             <div style={P.pageTitle}>구매 실적 등록</div>
             <div style={P.pageSub}>
-              전체 {rows.length.toLocaleString()}건 · <AmountText value={total} scale={1} />
+              전체 {(rows.length + pendingCount).toLocaleString()}건 · <AmountText value={total} scale={1} />
               {excludedSet.size > 0 && (
                 <span style={P.excludeBadge}>모수 제외 {excludedSet.size}건 (<AmountText value={excludedTotal} />)</span>
               )}
@@ -725,7 +739,7 @@ export default function DetailsPage({ rows, excludedSet: excludedSetProp = new S
             <tfoot>
               <tr style={{ background: '#f5f5f5', fontWeight: 700 }}>
                 <td style={{ ...P.td, textAlign: 'center' }} colSpan={TABLE_COLS.length + 1}>합계</td>
-                <td style={{ ...P.td, textAlign: 'right', color: '#1677ff' }}><AmountText value={total} /></td>
+                <td style={{ ...P.td, textAlign: 'right', color: '#1677ff' }}><AmountText value={total} scale={1} /></td>
                 <td style={P.td} />
               </tr>
             </tfoot>
