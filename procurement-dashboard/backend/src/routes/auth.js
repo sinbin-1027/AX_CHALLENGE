@@ -4,7 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 
 const router = express.Router();
 
-const GUEST = { username: 'guest', password: 'guest1234' };
+const GUEST = { username: 'kosme', password: '1234567a!' };
 
 // POST /api/auth/login
 router.post('/login', (req, res) => {
@@ -15,12 +15,12 @@ router.post('/login', (req, res) => {
   }
 
   const token = jwt.sign(
-    { username: 'guest', sessionId: uuidv4() },
+    { username: GUEST.username, sessionId: uuidv4() },
     process.env.JWT_SECRET,
-    { expiresIn: '24h' },
+    { expiresIn: '12h' },
   );
 
-  res.json({ ok: true, token, username: 'guest' });
+  res.json({ ok: true, token, username: GUEST.username });
 });
 
 // POST /api/auth/logout
