@@ -87,17 +87,17 @@ export default function GuideDetailPage() {
             <div style={S.title}>{guide.title}</div>
             <div style={S.meta}>{formatDateTime(guide.uploadedAt)} · {guide.originalFilename}</div>
           </div>
-          <button style={S.downloadBtn} onClick={handleDownload}>다운로드</button>
+          {/* <button style={S.downloadBtn} onClick={handleDownload}>다운로드</button> */}
         </div>
 
         {isPdf ? (
           previewUrl ? (
             <iframe title={guide.title} src={previewUrl} style={S.previewFrame} />
           ) : (
-            <div style={S.noPreview}>미리보기를 불러오는 중이거나 사용할 수 없습니다. 다운로드해서 확인해주세요.</div>
+            <div style={S.noPreview}>미리보기를 불러오는 중입니다..</div>
           )
         ) : (
-          <div style={S.noPreview}>미리보기를 지원하지 않는 파일 형식입니다. 다운로드해서 확인해주세요.</div>
+          <div style={S.noPreview}>※ 보안정책에 따라 현재 버전에서는 내부자료 열람·다운로드 기능을 제한합니다.</div>
         )}
       </div>
     </div>
